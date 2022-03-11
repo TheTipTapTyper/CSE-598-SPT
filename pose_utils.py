@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
-import numpy as np
-from scipy.interpolate import interp1d
 
 import mediapipe as mp
 pose_lm = mp.solutions.pose.PoseLandmark
 
+# the following command cuts video starting at 13 seconds and ends at the 26 second mark
+# ffmpeg -i output1.mp4 -ss 00:00:13 -to 00:00:26 -c copy output1_trimmed.mp4
 
 def get_side_landmarks(landmarks, side='right'):
     assert side in ['right', 'left'], 'side must be either "right" or "left"'
@@ -36,66 +36,54 @@ def get_side_landmarks(landmarks, side='right'):
     return coords
 
 
-def draw_side(ax, lms, color='k', linewidth=3, joint_size=50, inner_joint_size=20):
-    #limbs and torso
-    ax.plot(
-        (lms['ankle'][0], lms['knee'][0], lms['hip'][0], lms['shoulder'][0], lms['ear'][0]),
-        (-lms['ankle'][1], -lms['knee'][1], -lms['hip'][1], -lms['shoulder'][1], -lms['ear'][1],),
-        color,
+def draw_side(ax, lms, color='k', linewidth=3, joint_size=7, joint_edge_width=1.5):
+    #limbs and trunk
+    body, = ax.plot(
+        (lms['ankle'][0], lms['knee'][0], lms['hip'][0], lms['shoulder'][0], lms['ear'][0], 
+            lms['shoulder'][0], lms['elbow'][0], lms['wrist'][0], lms['index'][0]),
+        (-lms['ankle'][1], -lms['knee'][1], -lms['hip'][1], -lms['shoulder'][1], -lms['ear'][1], 
+            -lms['shoulder'][1], -lms['elbow'][1], -lms['wrist'][1], -lms['index'][1]),
+        color + 'o-',
+        markersize=joint_size,
+        markerfacecolor='w',
+        markeredgewidth=joint_edge_width,
+        markeredgecolor=color,
         linewidth=linewidth,
-        zorder=0,
+
     )
-    ax.plot(
-        (lms['shoulder'][0], lms['elbow'][0], lms['wrist'][0], lms['index'][0]),
-        (-lms['shoulder'][1], -lms['elbow'][1], -lms['wrist'][1], -lms['index'][1]),
-        color,
-        linewidth=linewidth,
-        zorder=0
-    )
-    #joints
-    ax.scatter(
-        (lms['ankle'][0], lms['knee'][0], lms['hip'][0], lms['shoulder'][0]),
-        (-lms['ankle'][1], -lms['knee'][1], -lms['hip'][1], -lms['shoulder'][1]),
-        s=joint_size,
-        c=color,
-        zorder=10,
-    )
-    ax.scatter(
-        (lms['ankle'][0], lms['knee'][0], lms['hip'][0], lms['shoulder'][0], lms['ear'][0]),
-        (-lms['ankle'][1], -lms['knee'][1], -lms['hip'][1], -lms['shoulder'][1], -lms['ear'][1],),
-        s=inner_joint_size,
-        c='w',
-        zorder=20,
-    )
-    ax.scatter(
-        (lms['shoulder'][0], lms['elbow'][0], lms['wrist'][0]), 
-        (-lms['shoulder'][1], -lms['elbow'][1], -lms['wrist'][1]),
-        s=joint_size,
-        c=color,
-        zorder=10,
-    )
-    ax.scatter(
-        (lms['shoulder'][0], lms['elbow'][0], lms['wrist'][0]), 
-        (-lms['shoulder'][1], -lms['elbow'][1], -lms['wrist'][1]),
-        s=inner_joint_size,
-        c='w',
-        zorder=20,
-    )
-    #head
-    ax.scatter(
+    # #head
+    head, = ax.plot(
         (lms['ear'][0]), 
         (-lms['ear'][1]),
-        s=joint_size * 10,
-        c=color,
-        zorder=20,
+        color + 'o',
+        markersize=joint_size * 5,
+        markerfacecolor='w',
+        markeredgewidth=joint_edge_width,
+        markeredgecolor=color,
     )
     #bar
-    ax.scatter(
+    bar, = ax.plot(
         (lms['index'][0]), 
         (-lms['index'][1]),
-        s=joint_size * 1.5,
-        c=color,
-        zorder=20,
+        color + 'o',
+        markersize=joint_size * 2,
+    )
+    return body, head, bar
+
+def update_side_drawing(lms, body, head, bar):
+    body.set_data(
+        (lms['ankle'][0], lms['knee'][0], lms['hip'][0], lms['shoulder'][0], lms['ear'][0], 
+            lms['shoulder'][0], lms['elbow'][0], lms['wrist'][0], lms['index'][0]),
+        (-lms['ankle'][1], -lms['knee'][1], -lms['hip'][1], -lms['shoulder'][1], -lms['ear'][1], 
+            -lms['shoulder'][1], -lms['elbow'][1], -lms['wrist'][1], -lms['index'][1])
+    )
+    head.set_data(
+        (lms['ear'][0]), 
+        (-lms['ear'][1]),
+    )
+    bar.set_data(
+        (lms['index'][0]), 
+        (-lms['index'][1]),
     )
 
 
@@ -113,16 +101,3 @@ def mirror_landmarks(side_lms):
         side_lms[key_point][0] = -side_lms[key_point][0]
     return side_lms 
 
-
-def side_lms_to_numpy(side_lms):
-    fig, ax = plt.subplots()
-    ax.set_xlim((-.75,.75))
-    ax.set_ylim((0,1.5))
-    #ax.set_axis_off()
-    fig.tight_layout(pad=0)
-    draw_side(ax, side_lms)
-    fig.canvas.draw()
-    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.close(fig)
-    return data

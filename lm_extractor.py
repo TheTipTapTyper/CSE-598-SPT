@@ -34,12 +34,14 @@ class LandmarkExtractor:
             (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
         ])
 
-    def extract_sideview_landmarks(self, image, **kwargs):
+    def extract_sideview_landmarks(self, image, ground=True, **kwargs):
         """ Calls the extract_landmarks method with **kwargs and then pulls
         out just the right and left side landmarks (ankle, knee, hip, shoulder,
         ear, elbow, wrist, index) and returns two numpy arrays (left, right)
         with the points indexed in that order. The module contains appropriately
         named constant attributes if you need to index a specific landmark.
+        Additionally, if ground is set to True, then the sideview landmarks 
+        are "grounded" by subtracting the ankle position from all points.
         e.g. 
         ...
         import lm_extractor as lme
@@ -52,27 +54,30 @@ class LandmarkExtractor:
         right = lms[[
             idxs.RIGHT_ANKLE, idxs.RIGHT_KNEE, idxs.RIGHT_HIP, idxs.RIGHT_SHOULDER,
             idxs.RIGHT_EAR, idxs.RIGHT_ELBOW, idxs.RIGHT_WRIST, idxs.RIGHT_INDEX
-        ]]
+        ]][:,[0,1,3]]
         left = lms[[
             idxs.LEFT_ANKLE, idxs.LEFT_KNEE, idxs.LEFT_HIP, idxs.LEFT_SHOULDER,
             idxs.LEFT_EAR, idxs.LEFT_ELBOW, idxs.LEFT_WRIST, idxs.LEFT_INDEX
-        ]]
+        ]][:,[0,1,3]]
+        #flip vertically
+        right[:, 1] = -right[:, 1]
+        left[:, 1] = -left[:, 1]
+        if ground:
+            right -= right[ANKLE]
+            left -= left[ANKLE]
         return left, right
 
 def weighted_average(landmarks):
-    """ Combines multiple landmark numpy arrays using the fourth column
+    """ Combines multiple landmark numpy arrays using the last column
     (the visibility) as the weight. The idea here is to combine multiple
     side views (both right and left, and possibly additional views from
-    multiple cameras) and weight the average by how confidence mediapipe
+    multiple cameras) and weight the average by how confident mediapipe
     is that the body part is not occluded.
     """
-    lm = landmarks[0]
     weighted_sum = np.sum(
         [(lm[:,:-1].T * lm[:,-1]).T for lm in landmarks], axis=0
     )
-    print('weighted_sum: {}'.format(weighted_sum))
     norm_factors = 1 / np.sum([lm[:,-1] for lm in landmarks], axis=0)
-    print('norm_factors: {}'.format(norm_factors))
     norm_sum = (weighted_sum.T * norm_factors).T
     return norm_sum
         

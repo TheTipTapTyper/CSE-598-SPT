@@ -3,6 +3,8 @@ matplotlib.use('GTK3Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from lm_extractor import SHOULDER, EAR, ELBOW, INDEX
+import cv2
+import mediapipe as mp
 
 
 SIDE_IMG_WIDTH_M = 2
@@ -20,15 +22,32 @@ DEFAULT_COLORS = [
 ]
 
 
-class FrameRenderer:
+class Renderer:
     def __init__(self, linewidth=3, joint_size=7, joint_edge_width=1.5):
         self.linewidth = linewidth
         self.joint_size = joint_size
         self.joint_edge_width = joint_edge_width
         self.plots = {}
         self.line_objs = {}
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
+        self.mp_pose = mp.solutions.pose
 
-    def render_sideview(self, landmarks_dict, image_id='default', colors=None, legend=True):
+    def render_landmarks(self, image, pose_landmarks):
+        """ Draws the mediapipe extracted landmarks onto the input image.
+        image is expected to be in RGB format
+        """
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        self.mp_drawing.draw_landmarks(
+            image,
+            pose_landmarks,
+            self.mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
+        )
+        return image
+
+    def render_sideview(self, landmarks_dict, image_id='default', colors=None, legend=True,
+                        width=640, height=480):
         """Renders one or more sets of sideview landmarks into an image.
         landmarks must be a dictionary mapping label names to sideview landmark
         numpy arrays (8x3).
@@ -54,7 +73,8 @@ class FrameRenderer:
         # if this is a new image_id, create a figure-axes pair for it and a new dict
         # to keep track of Line2D objects
         if image_id not in self.plots:
-            fig, ax = plt.subplots()
+            px = 1/plt.rcParams['figure.dpi']
+            fig, ax = plt.subplots(figsize=(width*px, height*px))            
             x = SIDE_IMG_WIDTH_M / 2
             ax.set_xlim((-x, x))
             ax.set_ylim((0,SIDE_IMG_HEIGHT_M))

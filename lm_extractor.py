@@ -63,23 +63,23 @@ class LandmarkExtractor:
         right[:, 1] = -right[:, 1]
         left[:, 1] = -left[:, 1]
         if ground:
-            right -= right[ANKLE]
-            left -= left[ANKLE]
+            right[:, :-1] -= right[ANKLE, :-1]
+            left[:, :-1] -= left[ANKLE, :-1]
         return left, right
 
-def weighted_average(landmarks):
-    """ Combines multiple landmark numpy arrays using the last column
-    (the visibility) as the weight. The idea here is to combine multiple
-    side views (both right and left, and possibly additional views from
-    multiple cameras) and weight the average by how confident mediapipe
-    is that the body part is not occluded.
-    """
-    weighted_sum = np.sum(
-        [(lm[:,:-1].T * lm[:,-1]).T for lm in landmarks], axis=0
-    )
-    norm_factors = 1 / np.sum([lm[:,-1] for lm in landmarks], axis=0)
-    norm_sum = (weighted_sum.T * norm_factors).T
-    return norm_sum
+    def weighted_average(self, landmarks):
+        """ Combines multiple landmark numpy arrays using the last column
+        (the visibility) as the weight. The idea here is to combine multiple
+        side views (both right and left, and possibly additional views from
+        multiple cameras) and weight the average by how confident mediapipe
+        is that the body part is not occluded.
+        """
+        weighted_sum = np.sum(
+            [(lm[:,:].T * lm[:,-1]).T for lm in landmarks], axis=0
+        )
+        norm_factors = 1 / np.sum([lm[:,-1] for lm in landmarks], axis=0)
+        norm_sum = (weighted_sum.T * norm_factors).T
+        return norm_sum
         
 
 if __name__ == '__main__':
@@ -92,5 +92,5 @@ if __name__ == '__main__':
     # test weighted average
     lm1 = np.array([[1,1,.1],[3,2,.1]])
     lm2 = np.array([[1.2,1.2,.1],[3.5,2.5,.3]])
-    print(weighted_average([lm1, lm2]))
+    print(lme.weighted_average([lm1, lm2]))
 

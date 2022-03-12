@@ -1,3 +1,10 @@
+"""
+Author: Joshua Martin
+Email: jmmartin397@protonmail.com
+Created: 3/12/2022
+Class: CSE 598 Perception in Robotics
+Project: Deadlift Critic
+"""
 from renderer import Renderer
 from lm_extractor import LandmarkExtractor
 from vid_man import VideoManager
@@ -82,4 +89,5 @@ def multiview_video(width=1920, height=1080):
 
 if __name__ == '__main__':
     #basic_test_of_sideview()
-    multiview_video(640,480)
+    #multiview_video(640,480)
+    multiview_video()

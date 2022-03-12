@@ -1,3 +1,10 @@
+"""
+Author: Joshua Martin
+Email: jmmartin397@protonmail.com
+Created: 3/12/2022
+Class: CSE 598 Perception in Robotics
+Project: Deadlift Critic
+"""
 import matplotlib
 matplotlib.use('GTK3Agg')
 import matplotlib.pyplot as plt

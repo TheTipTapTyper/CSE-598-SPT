@@ -1,4 +1,12 @@
+"""
+Author: Joshua Martin
+Email: jmmartin397@protonmail.com
+Created: 3/12/2022
+Class: CSE 598 Perception in Robotics
+Project: Deadlift Critic
+"""
 import cv2
+
 
 class VideoManager:
     """ Interface for managing one or more video input streams and/or one or more

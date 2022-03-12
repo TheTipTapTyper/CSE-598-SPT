@@ -1,46 +1,26 @@
 import matplotlib
 matplotlib.use('GTK3Agg')
 import matplotlib.pyplot as plt
-from moviepy.video.io.bindings import mplfig_to_npimage
 import numpy as np
-import abc
 from lm_extractor import SHOULDER, EAR, ELBOW, INDEX
 
 
 SIDE_IMG_WIDTH_M = 2
 SIDE_IMG_HEIGHT_M = 2
-DEFAULT_COLORS = [
-    'black', 'red', 'blue', 'green', 'pink', 'orage', 'yellow', 'teal',
-    'lime', 'purple', 'sandybrown', 'cyan', 'deeppink', 'coral', 'wheat', 'grey'
-]
-
-class FrameRenderer(abc.ABC):
-    def __init__(self):
-        pass
-
-    @abc.abstractmethod
-    def render_sideview(self, landmarks_dict, image_id='default', colors=None):
-        """Renders one or more sets of sideview landmarks into an image.
-        landmarks must be a dictionary mapping label names to sideview landmark
-        numpy arrays (8x3).
-        
-        input colors (if given) must be a list of color specifiers (refer to matplotlib
-        colors) and it must have the same number of elements as sets of landmarks. If
-        not given, default colors will be used, however, if more than 16 inputs are given,
-        colors must be supplied manually.
-        """
-        pass
-
-
 FIG = 'fig'
+BACKGROUND = 'bg' # used in blitting (https://matplotlib.org/stable/tutorials/advanced/blitting.html)
 AXES = 'ax'
 LINES_DICT = 'lines'
 BODY_LINE = 'body'
 HEAD_LINE = 'line'
 BAR_LINE = 'bar'
+DEFAULT_COLORS = [
+    'black', 'red', 'blue', 'green', 'pink', 'orage', 'yellow', 'teal',
+    'lime', 'purple', 'sandybrown', 'cyan', 'deeppink', 'coral', 'wheat', 'grey'
+]
 
 
-class MPLFrameRenderer(FrameRenderer):
+class FrameRenderer:
     def __init__(self, linewidth=3, joint_size=7, joint_edge_width=1.5):
         self.linewidth = linewidth
         self.joint_size = joint_size
@@ -79,13 +59,23 @@ class MPLFrameRenderer(FrameRenderer):
             ax.set_xlim((-x, x))
             ax.set_ylim((0,SIDE_IMG_HEIGHT_M))
             fig.tight_layout(pad=0)
-            self.plots[image_id] = {FIG: fig, AXES: ax, LINES_DICT: dict()}
+            self.plots[image_id] = {FIG: fig, AXES: ax, LINES_DICT: dict(), BACKGROUND: None}
         for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors):
+            fig = self.plots[image_id][FIG] 
             if label not in self.plots[image_id][LINES_DICT]:
                 self._draw_sideview(label, landmarks, image_id, color, legend)
+                
             else:
                 self._update_sideview(label, landmarks, image_id)
-        return mplfig_to_npimage(self.plots[image_id][FIG])
+        # save background without lines drawn for blitting on first draw
+        if self.plots[image_id][BACKGROUND] is None:
+            fig.canvas.draw()
+            self.plots[image_id][BACKGROUND] = fig.canvas.copy_from_bbox(fig.bbox)
+        # restore image to original background
+        fig.canvas.restore_region(self.plots[image_id][BACKGROUND])
+        # draw artists on top of original background
+        self._render_artists(image_id)
+        return np.array(fig.canvas.renderer._renderer)
 
     def _draw_sideview(self, label, landmarks, image_id, color, legend):
         # insert additional shoulder before the elbow (after the ear) for proper plotting
@@ -99,7 +89,8 @@ class MPLFrameRenderer(FrameRenderer):
             markeredgewidth=self.joint_edge_width,
             markeredgecolor=color,
             linewidth=self.linewidth,
-            label=label
+            label=label,
+            animated=True
         )
         head, = self.plots[image_id][AXES].plot(
             (landmarks[EAR, 0]), 
@@ -110,6 +101,7 @@ class MPLFrameRenderer(FrameRenderer):
             markerfacecolor='w',
             markeredgewidth=self.joint_edge_width,
             markeredgecolor=color,
+            animated=True
         )
         bar, = self.plots[image_id][AXES].plot(
             (landmarks[INDEX, 0]), 
@@ -117,12 +109,13 @@ class MPLFrameRenderer(FrameRenderer):
             'o',
             color=color,
             markersize=self.joint_size * 2,
+            animated=True
         )
+        if legend:
+            self.plots[image_id][AXES].legend()
         self.plots[image_id][LINES_DICT][label] = {
             BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar
         }
-        if legend:
-            self.plots[image_id][AXES].legend()
 
     def _update_sideview(self, label, landmarks, image_id):
         body_lms = self._prep_lms_for_body_plot(landmarks)
@@ -141,3 +134,14 @@ class MPLFrameRenderer(FrameRenderer):
 
     def _prep_lms_for_body_plot(self, lms):
         return np.vstack([lms[:ELBOW], lms[SHOULDER], lms[EAR:]])
+
+    def _render_artists(self, image_id):
+        fig = self.plots[image_id][FIG]
+        ax = self.plots[image_id][AXES]
+        for label in self.plots[image_id][LINES_DICT]:
+            ax.draw_artist(self.plots[image_id][LINES_DICT][label][BODY_LINE])
+            ax.draw_artist(self.plots[image_id][LINES_DICT][label][HEAD_LINE])
+            ax.draw_artist(self.plots[image_id][LINES_DICT][label][BAR_LINE])
+        fig.canvas.blit(ax.bbox)
+        fig.canvas.flush_events()
+

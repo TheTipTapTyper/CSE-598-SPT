@@ -95,7 +95,7 @@ class Renderer:
         fig.canvas.restore_region(self.plots[image_id][BACKGROUND])
         # draw artists on top of original background
         self._render_artists(image_id)
-        return np.array(fig.canvas.renderer._renderer)
+        return np.array(fig.canvas.renderer._renderer)[:,:,:3]
 
     def _draw_sideview(self, label, landmarks, image_id, color, legend):
         # insert additional shoulder before the elbow (after the ear) for proper plotting
@@ -153,7 +153,7 @@ class Renderer:
         )
 
     def _prep_lms_for_body_plot(self, lms):
-        return np.vstack([lms[:ELBOW], lms[SHOULDER], lms[EAR:]])
+        return np.vstack([lms[:ELBOW], lms[SHOULDER], lms[ELBOW:]])
 
     def _render_artists(self, image_id):
         fig = self.plots[image_id][FIG]

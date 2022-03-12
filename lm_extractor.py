@@ -27,6 +27,8 @@ class LandmarkExtractor:
 
         Additionally, the raw results.pose_landmarks (pixelspace landmarks) are
         stored in self.pose_landmarks for rendering purposed.
+
+        image is expected to be in RGB format
         """
         image.flags.writeable = False
         results = self.pose.process(image)

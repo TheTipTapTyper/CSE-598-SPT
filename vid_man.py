@@ -115,8 +115,9 @@ class VideoManager:
         for cap in self.caps:
             success, image = cap.read()
             # apply preprocessing functions
-            for func in self.input_preprocess_funcs:
-                image = func(image)
+            if success:
+                for func in self.input_preprocess_funcs:
+                    image = func(image)
             results.append((success, image))
         return results
 

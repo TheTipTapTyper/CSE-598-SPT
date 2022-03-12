@@ -23,9 +23,15 @@ class LandmarkExtractor:
         ear's landmark.
 
         world_lms specifies whether to grab world landmarks (in human coordinate
-        frame) or not (pixel coordinate frame)
+        frame) or not (pixel coordinate frame).
+
+        Additionally, the raw results.pose_landmarks (pixelspace landmarks) are
+        stored in self.pose_landmarks for rendering purposed.
         """
+        image.flags.writeable = False
         results = self.pose.process(image)
+        image.flags.writeable = True
+        self.pose_landmarks = results.pose_landmarks
         if world_lms:
             landmarks = results.pose_world_landmarks.landmark
         else:

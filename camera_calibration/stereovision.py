@@ -23,8 +23,8 @@ while(cap_right.isOpened() and cap_left.isOpened()):
     succes_left, frame_left = cap_left.read()
 
     # Undistort and rectify images
-    frame_right = cv2.remap(frame_right, stereoMapR_x, stereoMapR_y, cv2.INTER_LANCZOS4, cv2.BORDER_CONSTANT, 0)
-    frame_left = cv2.remap(frame_left, stereoMapL_x, stereoMapL_y, cv2.INTER_LANCZOS4, cv2.BORDER_CONSTANT, 0)
+    frame_right = cv2.undistort(frame_right, stereoMapR_x, stereoMapR_y, cv2.INTER_LANCZOS4, cv2.BORDER_CONSTANT, 0)
+    frame_left = cv2.undistort(frame_left, stereoMapL_x, stereoMapL_y, cv2.INTER_LANCZOS4, cv2.BORDER_CONSTANT, 0)
                      
     # Show the frames
     cv2.imshow("frame right", frame_right) 

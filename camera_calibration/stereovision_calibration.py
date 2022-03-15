@@ -25,8 +25,10 @@ objpoints = [] # 3d point in real world space
 imgpointsL = [] # 2d points in image plane.
 imgpointsR = [] # 2d points in image plane.
 
-imagesLeft = sorted(glob.glob('CSE 598/images/stereoLeft/*.png'))
-imagesRight = sorted(glob.glob('CSE 598/images/stereoRight/*.png'))
+imagesLeft = sorted(glob.glob('camera_calibration/images/stereoLeft/*.png'))
+imagesRight = sorted(glob.glob('camera_calibration/images/stereoRight/*.png'))
+
+print(len(imagesRight))
 
 for imgLeft, imgRight in zip(imagesLeft, imagesRight):
 
@@ -98,12 +100,53 @@ rectL, rectR, projMatrixL, projMatrixR, Q, roi_L, roi_R= cv.stereoRectify(newCam
 # stereoMapL = cv.initUndistortRectifyMap(newCameraMatrixL, distL, rectL, projMatrixL, grayL.shape[::-1], cv.CV_16SC2)
 # stereoMapR = cv.initUndistortRectifyMap(newCameraMatrixR, distR, rectR, projMatrixR, grayR.shape[::-1], cv.CV_16SC2)
 
-print("Saving parameters!")
-cv_file = cv.FileStorage('stereoMap.xml', cv.FILE_STORAGE_WRITE)
+# print("Saving parameters!")
+# cv_file = cv.FileStorage('stereoMap.xml', cv.FILE_STORAGE_WRITE)
 
-cv_file.write('stereoMapL_x',newCameraMatrixL[0])
-cv_file.write('stereoMapL_y',newCameraMatrixL[1])
-cv_file.write('stereoMapR_x',newCameraMatrixR[0])
-cv_file.write('stereoMapR_y',newCameraMatrixR[1])
+# cv_file.write('stereoMapL_x',stereoMapL[0])
+# cv_file.write('stereoMapL_y',stereoMapL[1])
+# cv_file.write('stereoMapR_x',stereoMapR[0])
+# cv_file.write('stereoMapR_y',stereoMapR[1])
 
-cv_file.release()
+# cv_file.release()
+
+
+# Camera parameters to undistort and rectify images
+# cv_file = cv2.FileStorage()
+# cv_file.open('stereoMap.xml', cv2.FileStorage_READ)
+
+# stereoMapL_x = cv_file.getNode('stereoMapL_x').mat()
+# stereoMapL_y = cv_file.getNode('stereoMapL_y').mat()
+# stereoMapR_x = cv_file.getNode('stereoMapR_x').mat()
+# stereoMapR_y = cv_file.getNode('stereoMapR_y').mat()
+
+
+# Open both cameras
+cap_right = cv.VideoCapture(1, cv.CAP_DSHOW)                    
+cap_left =  cv.VideoCapture(0, cv.CAP_DSHOW)
+
+
+while(cap_right.isOpened() and cap_left.isOpened()):
+
+    succes_right, frame_right = cap_right.read()
+    succes_left, frame_left = cap_left.read()
+
+    # Undistort and rectify images
+    frame_left = cv.undistort(frame_left, cameraMatrixL, distL, None, newCameraMatrixL)
+    frame_right = cv.undistort(frame_right, cameraMatrixR, distR, None, newCameraMatrixR)
+                     
+    # Show the frames
+    cv.imshow("frame right", frame_right) 
+    cv.imshow("frame left", frame_left)
+
+
+    # Hit "q" to close the window
+    if cv.waitKey(1) & 0xFF == ord('q'):
+        break
+
+
+# Release and destroy all windows before termination
+cap_right.release()
+cap_left.release()
+
+cv.destroyAllWindows()

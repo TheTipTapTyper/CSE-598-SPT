@@ -6,6 +6,7 @@ Class: CSE 598 Perception in Robotics
 Project: Deadlift Critic
 """
 import cv2
+import os
 
 
 class VideoManager:
@@ -116,6 +117,9 @@ class VideoManager:
         1) an integer, interpreted as a webcam index
         2) a string, interpreted as a path to a mp4 file
         """
+        if not isinstance(input, int): # filename
+            if not os.path.isfile(input):
+                raise FileNotFoundError(input)
         if self.caps is None:
             self.caps = dict()
         self.caps[input] = cv2.VideoCapture(input)

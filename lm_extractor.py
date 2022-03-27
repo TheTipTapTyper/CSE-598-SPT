@@ -47,12 +47,13 @@ class LandmarkExtractor:
         if results.pose_landmarks is None:
             return None
         if world_lms:
-            mp_lm_obj = results.pose_world_landmarks.landmark
+            landmarks = results.pose_world_landmarks.landmark
         else:
-            mp_lm_obj = results.pose_landmarks.landmark
+            landmarks = results.pose_landmarks.landmark
         lm_array = np.array([
-            (lm.x, lm.y, lm.z, lm.visibility) for lm in mp_lm_obj
+            (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
         ])
+        mp_lm_obj = results.pose_landmarks
         return lm_array, mp_lm_obj
 
     def extract_sideview_landmarks(self, image, ground=True, **kwargs):

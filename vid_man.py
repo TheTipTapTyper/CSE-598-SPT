@@ -148,6 +148,14 @@ class VideoManager:
         for idx, image in enumerate(images):
             self.write(image, idx)
 
+    def display(self, image, window_name='default'):
+        """ Display the given image and name the window window_name. Closes
+        window if ESC is pressed.
+        """
+        cv2.imshow(window_name, image)
+        if cv2.waitKey(1) & 0xFF == 27:
+            exit()
+
     def record(self, is_webcam=True, display=True):
         """Convenience function for directly writing video(s) to file. Number and order of
         input and output streams must be the same. Skips image on read failure if
@@ -174,9 +182,8 @@ class VideoManager:
                         break
                 if display:
                     for name, image in zip(names, images):
-                        cv2.imshow(name, image)
-                        if cv2.waitKey(1) & 0xFF == 27:
-                            exit()
+                        self.display(image, name)
+                        
                 self.write_all(images)
         finally:
             self.release()

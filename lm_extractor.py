@@ -24,8 +24,8 @@ class LandmarkExtractor:
 
     def extract_landmarks(self, image, world_lms=True):
         """ Runs Mediapipe's pose model on the given image and reformats the
-        output land marks into a 33x4 numpy array. Row indices are the same
-        as the mediapipe landmark indices provided by constants in the 
+        output landmark object into a 33x4 numpy array. Row indices are the same
+        as the mediapipe landmark object indices provided by constants in the 
         mp.solutions.pose.PoseLandmark module. 
         e.g. mp.solutions.pose.PoseLandmark.RIGHT_EAR is the index of the right
         ear's landmark.
@@ -33,45 +33,63 @@ class LandmarkExtractor:
         world_lms specifies whether to grab world landmarks (in human coordinate
         frame) or not (pixel coordinate frame).
 
-        Additionally, the raw results.pose_landmarks (pixelspace landmarks) are
-        stored in self.pose_landmarks for rendering purposed.
+        The return value is a tuple (lm_array, mp_lm_obj) where lm_array is the
+        33x4 numpy array and mp_lm_obj is the mediapipe landmark object which
+        can be used for rendering purposes.
+
+        If the pose estimator failed to detect a person, this method returns None.
 
         image is expected to be in RGB format
         """
         image.flags.writeable = False
         results = self.pose.process(image)
         image.flags.writeable = True
-        self.pose_landmarks = results.pose_landmarks
+        if results.pose_landmarks is None:
+            return None
         if world_lms:
-            landmarks = results.pose_world_landmarks.landmark
+            mp_lm_obj = results.pose_world_landmarks.landmark
         else:
-            landmarks = results.pose_landmarks.landmark
-        return np.array([
-            (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
+            mp_lm_obj = results.pose_landmarks.landmark
+        lm_array = np.array([
+            (lm.x, lm.y, lm.z, lm.visibility) for lm in mp_lm_obj
         ])
+        return lm_array, mp_lm_obj
 
     def extract_sideview_landmarks(self, image, ground=True, **kwargs):
-        """ Calls the extract_landmarks method with **kwargs and then pulls
-        out just the right and left side landmarks (ankle, knee, hip, shoulder,
-        ear, elbow, wrist, index) and returns two numpy arrays (left, right)
-        with the points indexed in that order. The module contains appropriately
-        named constant attributes if you need to index a specific landmark.
-        Additionally, if ground is set to True, then the sideview landmarks 
+        """Extracts pose landmarks from the image and further breaks them up into
+        two 8x4 numpy arrays (for the right and left side of the body). The
+        landmarks of the arrays are indexed in the following order:
+        (ankle, knee, hip, shoulder, ear, elbow, wrist, index)
+        The module contains appropriately named constant attributes if you need
+        to index a specific landmark.
+        
+        The return value is a 3-tuple (left, right, mp_lm_obj) where left and
+        right are the left and right side numpy arrays and mp_lm_obj is the
+        mediapipe landmark object, from which the side views were extracted,
+        which can be used for rendering purposes.
+
+        Additionally, if ground is set to True (default), then the sideview landmarks 
         are "grounded" by subtracting the ankle position from all points.
+
+        If the pose estimator failed to detect a person, this method returns None.
+
         e.g. 
         ...
         import lm_extractor as lme
         extractor = lme.LandmarkExtractor()
-        left, right = extractor.extract_sideview_landmarks(im)
+        left, right, mp_lm_obj = extractor.extract_sideview_landmarks(im)
         wrist_lm = right[lme.WRIST]
         """
-        lms = self.extract_landmarks(image, **kwargs)
+        results = self.extract_landmarks(image, **kwargs)
+        if results is None:
+            return None
+        lm_array, mp_lm_obj = results
         idxs = mp.solutions.pose.PoseLandmark
-        right = lms[[
+        right = lm_array[[
             idxs.RIGHT_ANKLE, idxs.RIGHT_KNEE, idxs.RIGHT_HIP, idxs.RIGHT_SHOULDER,
             idxs.RIGHT_EAR, idxs.RIGHT_ELBOW, idxs.RIGHT_WRIST, idxs.RIGHT_INDEX
         ]][:,[0,1,3]]
-        left = lms[[
+        left = lm_array[[
             idxs.LEFT_ANKLE, idxs.LEFT_KNEE, idxs.LEFT_HIP, idxs.LEFT_SHOULDER,
             idxs.LEFT_EAR, idxs.LEFT_ELBOW, idxs.LEFT_WRIST, idxs.LEFT_INDEX
         ]][:,[0,1,3]]
@@ -81,7 +99,7 @@ class LandmarkExtractor:
         if ground:
             right[:, :-1] -= right[ANKLE, :-1]
             left[:, :-1] -= left[ANKLE, :-1]
-        return left, right
+        return left, right, mp_lm_obj
 
     def weighted_average(self, landmarks):
         """ Combines multiple landmark numpy arrays using the last column

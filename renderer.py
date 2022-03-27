@@ -40,14 +40,15 @@ class Renderer:
         self.mp_drawing_styles = mp.solutions.drawing_styles
         self.mp_pose = mp.solutions.pose
 
-    def render_landmarks(self, image, pose_landmarks):
+    def render_landmarks(self, image, mp_lm_obj):
         """ Draws the mediapipe extracted landmarks onto the input image.
-        image is expected to be in RGB format
+        Image is expected to be in RGB format.
+        mp_lm_obj is the landmark object returned medeiapipe, not a numpy array.
         """
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         self.mp_drawing.draw_landmarks(
             image,
-            pose_landmarks,
+            mp_lm_obj,
             self.mp_pose.POSE_CONNECTIONS,
             landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
         )
@@ -56,7 +57,7 @@ class Renderer:
     def render_sideview(self, landmarks_dict, image_id='default', colors=None, legend=True,
                         width=640, height=480):
         """Renders one or more sets of sideview landmarks into an image.
-        landmarks must be a dictionary mapping label names to sideview landmark
+        landmarks_dict must be a dictionary mapping label names to sideview landmark
         numpy arrays (8x3).
 
         input colors (if given) must be a list of color specifiers (refer to matplotlib
@@ -87,8 +88,8 @@ class Renderer:
             ax.set_ylim((0,SIDE_IMG_HEIGHT_M))
             fig.tight_layout(pad=0)
             self.plots[image_id] = {FIG: fig, AXES: ax, LINES_DICT: dict(), BACKGROUND: None}
-        for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors):
-            fig = self.plots[image_id][FIG] 
+        fig = self.plots[image_id][FIG]
+        for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors): 
             if label not in self.plots[image_id][LINES_DICT]:
                 self._draw_sideview(label, landmarks, image_id, color, legend)
                 

@@ -148,10 +148,14 @@ class VideoManager:
         for idx, image in enumerate(images):
             self.write(image, idx)
 
-    def display(self, image, window_name='default'):
+    def display(self, image, window_name='default', fullscreen=True):
         """ Display the given image and name the window window_name. Closes
         window if ESC is pressed.
         """
+        if fullscreen:
+            cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
+            cv2.setWindowProperty(window_name,cv2.WND_PROP_FULLSCREEN,
+                cv2.WINDOW_FULLSCREEN)
         cv2.imshow(window_name, image)
         if cv2.waitKey(1) & 0xFF == 27:
             exit()
@@ -182,7 +186,7 @@ class VideoManager:
                         break
                 if display:
                     for name, image in zip(names, images):
-                        self.display(image, name)
+                        self.display(image, name, fullscreen=False)
                         
                 self.write_all(images)
         finally:

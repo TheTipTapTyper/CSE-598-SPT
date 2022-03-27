@@ -37,6 +37,8 @@ class LandmarkExtractor:
         33x4 numpy array and mp_lm_obj is the mediapipe landmark object which
         can be used for rendering purposes.
 
+        The columns of the arrays are x, y, z and visibility respectively.
+
         If the pose estimator failed to detect a person, this method returns None.
 
         image is expected to be in RGB format
@@ -58,11 +60,13 @@ class LandmarkExtractor:
 
     def extract_sideview_landmarks(self, image, ground=True, **kwargs):
         """Extracts pose landmarks from the image and further breaks them up into
-        two 8x4 numpy arrays (for the right and left side of the body). The
+        two 8x3 numpy arrays (for the right and left side of the body). The
         landmarks of the arrays are indexed in the following order:
         (ankle, knee, hip, shoulder, ear, elbow, wrist, index)
         The module contains appropriately named constant attributes if you need
         to index a specific landmark.
+
+        The columns of the arrays are x, y and visibility respectively.
         
         The return value is a 3-tuple (left, right, mp_lm_obj) where left and
         right are the left and right side numpy arrays and mp_lm_obj is the

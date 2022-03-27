@@ -10,133 +10,91 @@ from lm_extractor import LandmarkExtractor
 from vid_man import VideoManager
 import cv2
 import numpy as np        
+import calibrate
 
-def basic_test_of_sideview():
+
+def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=1080):
+    is_webcam = isinstance(inputs[0], int)
     re = Renderer()
-    le = LandmarkExtractor()
+    le = LandmarkExtractor(
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.75,
+        smooth_landmarks=True,
+        model_complexity=1,
+    )
+    # setup video streams
     vm = VideoManager()
-    vm.setup_input('input/output1_trimmed.mp4')
-    image_id = 'left_right'
+    for idx, input in enumerate(inputs):
+        vm.setup_input(input)
+        if cam_cal_param_files is not None:
+            cal = calibrate.Calibrator()
+            cal.load_from_file(cam_cal_param_files[idx])
+            vm.add_input_preprocess(lambda im: cal.undistort(im), input)
+    # adjust color space for all input streams
+    vm.add_input_preprocess(lambda im: cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+    # optionally setup output stream
+    if output_fn is not None:
+        vm.setup_output(output_fn, width=width, height=height, fps=10)
+    # main loop
+    print(vm.is_open())
     try:
-        while(vm.is_open()):
-            success, image = vm.read()[0]
+        while vm.is_open():
+            results = [vm.read(id) for id in inputs]
+            images = [img for _, img in results]
+            success = all(suc for suc, _ in results)
             if not success:
-                break
-            left, right = le.extract_sideview_landmarks(image)
-            w_avg = le.weighted_average([left, right])
-            side_image = re.render_sideview({
-                'left': left,
-                'right': right,
-                'weighted average': w_avg
-            }, image_id=image_id)
-            cv2.imshow(image_id, side_image)
-            if cv2.waitKey(1) & 0xFF == 27:
-                exit()
+                if is_webcam:
+                    print('read failed. skipping frame')
+                    continue
+                else:
+                    print('read failed. exiting')
+                    break
+            top_row_images = []
+            side_view_arrays_dict = dict()
+            for idx, image in enumerate(images):
+                extraction = le.extract_sideview_landmarks(image)
+                if extraction is None: # pose detection failed
+                    top_row_images.append(image)
+                    break
+                left, right, mp_lm_obj = extraction
+                top_row_images.append(re.render_landmarks(image, mp_lm_obj))
+                side_view_arrays_dict['left{}'.format(idx)] = left
+                side_view_arrays_dict['right{}'.format(idx)] = right
+            # calculate weighted average of sideviews, if there are any
+            w_avg_array_dict = dict()
+            if len(side_view_arrays_dict) > 0: # at least one person in view
+                w_avg_array_dict['weighted avg'] = le.weighted_average(
+                    side_view_arrays_dict.values()
+                )
+            # render side view images
+            left_sv_image = re.render_sideview(side_view_arrays_dict, image_id='left')
+            right_sv_image = re.render_sideview(w_avg_array_dict, image_id='right')
+            # resize images before stitching them together
+            # top row images are squished horizontally so that they all fit
+            resized_top_row_images = []
+            num_images = len(top_row_images)
+            for image in top_row_images:
+                resized_top_row_images.append(cv2.resize(image, 
+                    (width//num_images, height//2))
+                )
+            left_sv_image = cv2.resize(left_sv_image, (width//2, height//2))
+            right_sv_image = cv2.resize(right_sv_image, (width//2, height//2))
+            # stitch together top image and resize to ensure proper dimensions
+            top_image = np.hstack(resized_top_row_images)
+            top_image = cv2.resize(top_image, (width, height//2))
+            # stitch together full image
+            bottom_image = np.hstack([left_sv_image, right_sv_image])
+            full_image = np.vstack([top_image, bottom_image])
+            # display and save (if recording)
+            vm.display(full_image, window_name='Deadlift Critic', fullscreen=True)
+            if output_fn is not None:
+                vm.write(full_image, output_fn)
+
     finally:
         vm.release()
 
-
-def multiview_video(width=1920, height=1080):
-    re = Renderer()
-    le = LandmarkExtractor(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.75,
-        smooth_landmarks=True,
-        model_complexity=1,
-    )
-    vm = VideoManager()
-    vm.setup_input('input/output1_trimmed.mp4')
-    vm.setup_input('input/output2_trimmed.mp4')
-    vm.add_input_preprocess(lambda im: cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
-    vm.setup_output('output/weighted_average3.mp4', width=width, height=height)
-    try:
-        while(vm.is_open()):
-            ((suc1, img1), (suc2, img2)) = vm.read()
-            if not (suc1 and suc2):
-                break
-            left1, right1 = le.extract_sideview_landmarks(img1)
-            top_left_img = re.render_landmarks(img1, le.pose_landmarks)
-            left2, right2 = le.extract_sideview_landmarks(img2)
-            top_right_img = re.render_landmarks(img2, le.pose_landmarks)
-            w_avg = le.weighted_average([left1, right1, left2, right2])
-            bottom_left_img = re.render_sideview({
-                'left1': left1,
-                'right1': right1,
-                'left2': left2,
-                'right2': right2,
-            }, image_id='all_sides')
-            bottom_right_img = re.render_sideview({'weighted avg': w_avg}, 
-                image_id='w_avg')
-            top_left_img = cv2.resize(top_left_img, (width//2, height//2))
-            top_right_img = cv2.resize(top_right_img, (width//2, height//2))
-            bottom_left_img = cv2.resize(bottom_left_img, (width//2, height//2))
-            bottom_right_img = cv2.resize(bottom_right_img, (width//2, height//2))
-            image = np.vstack([
-                np.hstack([top_left_img, top_right_img]), 
-                np.hstack([bottom_left_img, bottom_right_img])
-            ])
-            cv2.namedWindow('Deadlift Critic', cv2.WND_PROP_FULLSCREEN)
-            cv2.setWindowProperty('Deadlift Critic',cv2.WND_PROP_FULLSCREEN,
-                cv2.WINDOW_FULLSCREEN)
-            cv2.imshow('Deadlift Critic', image)
-            vm.write(image, 0)
-            if cv2.waitKey(1) & 0xFF == 27:
-                exit()
-    finally:
-        vm.release()
-
-
-def multiview_camera(record=False, width=1920, height=1080):
-    re = Renderer()
-    le = LandmarkExtractor(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.75,
-        smooth_landmarks=True,
-        model_complexity=1,
-    )
-    vm = VideoManager()
-    vm.setup_input(1)
-    vm.setup_input(2)
-    vm.add_input_preprocess(lambda im: cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
-    vm.add_output_postprocess(lambda im: cv2.flip(im, 1))
-    try:
-        while(vm.is_open()):
-            ((suc1, img1), (suc2, img2)) = vm.read()
-            if not (suc1 and suc2):
-                break
-            left1, right1 = le.extract_sideview_landmarks(img1)
-            top_left_img = re.render_landmarks(img1, le.pose_landmarks)
-            left2, right2 = le.extract_sideview_landmarks(img2)
-            top_right_img = re.render_landmarks(img2, le.pose_landmarks)
-            w_avg = le.weighted_average([left1, right1, left2, right2])
-            bottom_left_img = re.render_sideview({
-                'left1': left1,
-                'right1': right1,
-                'left2': left2,
-                'right2': right2,
-            }, image_id='all_sides')
-            bottom_right_img = re.render_sideview({'weighted avg': w_avg}, 
-                image_id='w_avg')
-            top_left_img = cv2.resize(top_left_img, (width//2, height//2))
-            top_right_img = cv2.resize(top_right_img, (width//2, height//2))
-            bottom_left_img = cv2.resize(bottom_left_img, (width//2, height//2))
-            bottom_right_img = cv2.resize(bottom_right_img, (width//2, height//2))
-            image = np.vstack([
-                np.hstack([top_left_img, top_right_img]), 
-                np.hstack([bottom_left_img, bottom_right_img])
-            ])
-            cv2.namedWindow('Deadlift Critic', cv2.WND_PROP_FULLSCREEN)
-            cv2.setWindowProperty('Deadlift Critic',cv2.WND_PROP_FULLSCREEN,
-                cv2.WINDOW_FULLSCREEN)
-            cv2.imshow('Deadlift Critic', image)
-            vm.write(image, 0)
-            if cv2.waitKey(1) & 0xFF == 27:
-                exit()
-    finally:
-        vm.release()
 
 
 if __name__ == '__main__':
-    #basic_test_of_sideview()
-    #multiview_video(640,480)
-    multiview_video()
+    inputs = [0]
+    run(inputs)

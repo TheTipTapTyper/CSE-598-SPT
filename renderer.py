@@ -52,16 +52,11 @@ class Renderer:
         )
         return image
 
-    def render_sideview(self, landmarks_dict, image_id='default', colors=None, legend=True,
+    def render_sideview(self, landmarks_dict, image_id='default', legend=True,
                         width=640, height=480):
         """Renders one or more sets of sideview landmarks into an image.
         landmarks_dict must be a dictionary mapping label names to sideview landmark
         numpy arrays (8x3).
-
-        input colors (if given) must be a list of color specifiers (refer to matplotlib
-        colors) and it must have the same number of elements as sets of landmarks. If
-        not given, default colors will be used, however, if more than 16 inputs are given,
-        colors must be supplied manually.
 
         The renderer maintains Line2D objects so that subsequent render_sideview
         calls can simply update the data rather than drawing from scratch. However,
@@ -72,38 +67,56 @@ class Renderer:
             isinstance(arr, np.ndarray) and arr.shape == (8,3) 
             for arr in landmarks_dict.values()
         ), 'landmarks_dict must be a dict: {str : (8x3) np.ndarray}'
-        if colors is None:
-            colors = DEFAULT_COLORS[:len(landmarks_dict)]
-        assert len(colors) == len(landmarks_dict), 'must have same number of colors as landmark sets'
-
-        # if this is a new image_id, create a figure-axes pair for it and a new dict
-        # to keep track of Line2D objects
+        colors = DEFAULT_COLORS[:len(landmarks_dict)]
         if image_id not in self.plots:
-            px = 1/plt.rcParams['figure.dpi']
-            fig, ax = plt.subplots(figsize=(width*px, height*px))            
-            x = SIDE_IMG_WIDTH_M / 2
-            ax.set_xlim((-x, x))
-            ax.set_ylim((0,SIDE_IMG_HEIGHT_M))
-            fig.tight_layout(pad=0)
-            self.plots[image_id] = {FIG: fig, AXES: ax, LINES_DICT: dict(), BACKGROUND: None}
+            self._setup_sideview_plot(image_id, width, height)
+        # if number of landmark sets has changed (or if this is the first render), draw and save background
+        if len(landmarks_dict) != len(self.plots[image_id][LINES_DICT]) or \
+            self.plots[image_id][BACKGROUND] is None:
+            self._refresh_sideview(image_id, landmarks_dict, colors, legend)
+        else: # just update the previous draw Line2D objects
+            for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors): 
+                self._update_sideview_artists(label, landmarks, image_id)
+        self._restore_background(image_id)
+        self._draw_sideview_artists(image_id)
         fig = self.plots[image_id][FIG]
-        for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors): 
-            if label not in self.plots[image_id][LINES_DICT]:
-                self._draw_sideview(label, landmarks, image_id, color, legend)
-                
-            else:
-                self._update_sideview(label, landmarks, image_id)
-        # save background without lines drawn for blitting on first draw
-        if self.plots[image_id][BACKGROUND] is None:
-            fig.canvas.draw()
-            self.plots[image_id][BACKGROUND] = fig.canvas.copy_from_bbox(fig.bbox)
-        # restore image to original background
-        fig.canvas.restore_region(self.plots[image_id][BACKGROUND])
-        # draw artists on top of original background
-        self._render_artists(image_id)
         return np.array(fig.canvas.renderer._renderer)[:,:,:3]
 
-    def _draw_sideview(self, label, landmarks, image_id, color, legend):
+    def _restore_background(self, image_id):
+        fig = self.plots[image_id][FIG]
+        background_img = self.plots[image_id][BACKGROUND]
+        fig.canvas.restore_region(background_img)
+
+    def _save_background_for_blitting(self, image_id):
+        fig = self.plots[image_id][FIG]
+        fig.canvas.draw()
+        background_img = fig.canvas.copy_from_bbox(fig.bbox)
+        self.plots[image_id][BACKGROUND] = background_img
+
+    def _refresh_sideview(self, image_id, landmarks_dict, colors, legend):
+        """ This method reinitializes the Line2D objects of the sideview plot
+        and redraws and saves the background for blitting.
+        """
+        for artists_dict in self.plots[image_id][LINES_DICT].values():
+            for artist in artists_dict.values():
+                artist.remove()
+        self.plots[image_id][LINES_DICT] = dict()
+        for (label, landmarks), color in zip(sorted(landmarks_dict.items()), colors): 
+            self._create_sideview_artists(label, landmarks, image_id, color, legend)
+        self._save_background_for_blitting(image_id)
+
+    def _setup_sideview_plot(self, image_id, width, height):
+        """ This method sets up the figure and axes of the sideview plot.
+        """
+        px = 1/plt.rcParams['figure.dpi']
+        fig, ax = plt.subplots(figsize=(width*px, height*px))            
+        x = SIDE_IMG_WIDTH_M / 2
+        ax.set_xlim((-x, x))
+        ax.set_ylim((0,SIDE_IMG_HEIGHT_M))
+        fig.tight_layout(pad=0)
+        self.plots[image_id] = {FIG: fig, AXES: ax, LINES_DICT: dict(), BACKGROUND: None}
+
+    def _create_sideview_artists(self, label, landmarks, image_id, color, legend):
         # insert additional shoulder before the elbow (after the ear) for proper plotting
         body_lms = self._prep_lms_for_body_plot(landmarks)
         body, = self.plots[image_id][AXES].plot(
@@ -143,7 +156,7 @@ class Renderer:
             BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar
         }
 
-    def _update_sideview(self, label, landmarks, image_id):
+    def _update_sideview_artists(self, label, landmarks, image_id):
         body_lms = self._prep_lms_for_body_plot(landmarks)
         self.plots[image_id][LINES_DICT][label][BODY_LINE].set_data(
             body_lms[:,0],
@@ -161,7 +174,7 @@ class Renderer:
     def _prep_lms_for_body_plot(self, lms):
         return np.vstack([lms[:ELBOW], lms[SHOULDER], lms[ELBOW:]])
 
-    def _render_artists(self, image_id):
+    def _draw_sideview_artists(self, image_id):
         fig = self.plots[image_id][FIG]
         ax = self.plots[image_id][AXES]
         for label in self.plots[image_id][LINES_DICT]:

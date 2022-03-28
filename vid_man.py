@@ -146,8 +146,8 @@ class VideoManager:
         if len(self.caps) > 0:
             first_cap = self.caps[self.input_ids[0]]
         fps = fps or first_cap.get(cv2.CAP_PROP_FPS)
-        width = width or first_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = height or first_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        width = width or int(first_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = height or int(first_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         if self.outs is None:
             self.outs = dict()

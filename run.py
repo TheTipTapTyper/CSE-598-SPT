@@ -31,6 +31,13 @@ def setup_video_manager(inputs, cam_cal_param_files, output_fn, width, height):
     return vm
 
 def stitch_full_image(top_row_images, left_sv_image, right_sv_image, width, height):
+    # if only one top image, add padding to sides
+    if len(top_row_images) == 1:
+        top_h, top_w, _ = top_row_images[0].shape
+        if top_w < width:
+            pad_width = width - top_w
+            pad = np.zeros((top_h, pad_width // 2, 3), dtype=np.uint8)
+            top_row_images[0] = np.hstack([pad, top_row_images[0], pad])
     # resize images before stitching them together
     # top row images are squished horizontally so that they all fit
     resized_top_row_images = []
@@ -55,7 +62,7 @@ def render_images(raw_images, le, re):
     for idx, image in enumerate(raw_images):
         extraction = le.extract_sideview_landmarks(image)
         if extraction is None: # pose detection failed
-            top_row_images.append(image)
+            top_row_images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             break
         left, right, mp_lm_obj = extraction
         top_row_images.append(re.render_landmarks(image, mp_lm_obj))
@@ -111,6 +118,49 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
 
 
 
+
+def record_2_cams(run_no):
+    vm = VideoManager()
+    in_no_film = 4
+    in_film = 2
+    vm.setup_input(in_no_film)
+    vm.setup_input(in_film)
+    out1 = 'output_3_28_22/cam_no_film_run{}.mp4'.format(run_no)
+    out2 = 'output_3_28_22/cam_film_run{}.mp4'.format(run_no)
+    vm.setup_output(out1)
+    vm.setup_output(out2)
+    while vm.is_open():
+        suc1, image1 = vm.read(in_no_film)
+        suc2, image2 = vm.read(in_film)
+        if not suc1 and suc2:
+            continue
+        vm.display(image1, 'no_film')
+        vm.display(image2, 'film')
+        vm.write(image1, out1)
+        vm.write(image2, out2)
+
+
+def test_cam_idx(idx):
+    vm = VideoManager()
+    vm.setup_input(idx)
+    while vm.is_open():
+        suc, image = vm.read()
+        if not suc:
+            continue
+        vm.display(image)
+
+
+
+
 if __name__ == '__main__':
-    inputs = [0]
+    run_no = 1
+    with_film_fn = 'sample_video_pairs/cam_film_run{}.mp4'.format(run_no)
+    no_film_fn = 'sample_video_pairs/cam_no_film_run{}.mp4'.format(run_no)
+    inputs = [with_film_fn, no_film_fn]
+    
+    calibration_params = [
+        'with_film_calibration.params',
+        'no_film_calibration_params'
+    ]
+    inputs = [2]
     run(inputs)

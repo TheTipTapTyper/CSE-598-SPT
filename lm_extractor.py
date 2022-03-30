@@ -55,6 +55,8 @@ class LandmarkExtractor:
         lm_array = np.array([
             (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
         ])
+        if world_lms:
+            lm_array = self._normalize_world_landmarks(lm_array)
         mp_lm_obj = results.pose_landmarks
         return lm_array, mp_lm_obj
 
@@ -93,11 +95,11 @@ class LandmarkExtractor:
         right = lm_array[[
             idxs.RIGHT_ANKLE, idxs.RIGHT_KNEE, idxs.RIGHT_HIP, idxs.RIGHT_SHOULDER,
             idxs.RIGHT_EAR, idxs.RIGHT_ELBOW, idxs.RIGHT_WRIST, idxs.RIGHT_INDEX
-        ]][:,[0,1,3]]
+        ]][:,[2,1,3]]
         left = lm_array[[
             idxs.LEFT_ANKLE, idxs.LEFT_KNEE, idxs.LEFT_HIP, idxs.LEFT_SHOULDER,
             idxs.LEFT_EAR, idxs.LEFT_ELBOW, idxs.LEFT_WRIST, idxs.LEFT_INDEX
-        ]][:,[0,1,3]]
+        ]][:,[2,1,3]]
         #flip vertically
         right[:, 1] = -right[:, 1]
         left[:, 1] = -left[:, 1]
@@ -120,6 +122,34 @@ class LandmarkExtractor:
         norm_sum = (weighted_sum.T * norm_factors).T
         return norm_sum
         
+    def _angle_between_vecs(self, v1, v2):
+        """ returns the angle between two vectors (in randians)
+        Reference: https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python
+        """
+        v1_u = v1 / np.linalg.norm(v1)
+        v2_u = v2 / np.linalg.norm(v2)
+        # return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+        return np.arccos(np.dot(v1_u, v2_u))
+
+    def _normalize_world_landmarks(self, lm_array):
+        """ Take array of world (coordinate frame centered on hips) landmarks
+        and rotate so that hips face directly in the -z diraction (towards camera).
+        """
+        # find angle between left hip vector and x axis on the xz plane.
+        idxs = mp.solutions.pose.PoseLandmark
+        left_hip_vec = lm_array[idxs.LEFT_HIP][[0,2]] # ignore y coord
+        x_axis_vec = np.array([1,0])
+        theta = -self._angle_between_vecs(left_hip_vec, x_axis_vec)
+        # flip angle if in third or fourth quandrants
+        if left_hip_vec[1] < 0:
+            theta *= -1
+        # rotate all points by theta_x
+        rot_mat = np.array([
+            [np.cos(theta), np.sin(theta)],
+            [-np.sin(theta), np.cos(theta)]
+        ])
+        lm_array[:,[0,2]] = lm_array[:,[0,2]] @ rot_mat
+        return lm_array
 
 if __name__ == '__main__':
     # test landmark extraction

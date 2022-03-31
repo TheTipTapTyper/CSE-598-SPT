@@ -60,7 +60,7 @@ def render_images(raw_images, le, re):
     top_row_images = []
     side_view_arrays_dict = dict()
     for idx, image in enumerate(raw_images):
-        extraction = le.extract_sideview_landmarks(image)
+        extraction = le.extract_sideview_landmarks(image, input_id=idx)
         if extraction is None: # pose detection failed
             top_row_images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             break
@@ -153,14 +153,14 @@ def test_cam_idx(idx):
 
 
 if __name__ == '__main__':
-    run_no = 1
+    run_no = 2
     with_film_fn = 'sample_video_pairs/cam_film_run{}.mp4'.format(run_no)
     no_film_fn = 'sample_video_pairs/cam_no_film_run{}.mp4'.format(run_no)
     inputs = [with_film_fn, no_film_fn]
     
     calibration_params = [
         'with_film_calibration.params',
-        'no_film_calibration_params'
+        'no_film_calibration.params'
     ]
-    inputs = [2]
-    run(inputs)
+    #inputs = [1]
+    run(inputs, calibration_params)

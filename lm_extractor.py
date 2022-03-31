@@ -20,9 +20,10 @@ INDEX = 7
 
 class LandmarkExtractor:
     def __init__(self, **kwargs):
-        self.pose = mp.solutions.pose.Pose(**kwargs)
+        self.pose_kwargs = kwargs
+        self.pose_extractor_instances = {}
 
-    def extract_landmarks(self, image, world_lms=True):
+    def extract_landmarks(self, image, input_id='default', world_lms=True):
         """ Runs Mediapipe's pose model on the given image and reformats the
         output landmark object into a 33x4 numpy array. Row indices are the same
         as the mediapipe landmark object indices provided by constants in the 
@@ -43,8 +44,12 @@ class LandmarkExtractor:
 
         image is expected to be in RGB format
         """
+        if input_id not in self.pose_extractor_instances:
+            self.pose_extractor_instances[input_id] = mp.solutions.pose.Pose(
+                **self.pose_kwargs
+            )
         image.flags.writeable = False
-        results = self.pose.process(image)
+        results = self.pose_extractor_instances[input_id].process(image)
         image.flags.writeable = True
         if results.pose_landmarks is None:
             return None

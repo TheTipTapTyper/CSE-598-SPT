@@ -8,6 +8,8 @@ Project: Deadlift Critic
 
 import mediapipe as mp
 import numpy as np
+import multiprocessing as mproc
+
 
 ANKLE = 0
 KNEE = 1
@@ -22,6 +24,69 @@ class LandmarkExtractor:
     def __init__(self, **kwargs):
         self.pose_kwargs = kwargs
         self.pose_extractor_instances = {}
+
+    def parallel_extract(self, images, input_ids, extract_type='all', **kwargs):
+        """ uses multiprocessing to execute extraction methods in parallel. 
+        images is a list of images that correspond to the input streams identified
+        by the corresponding ids in input_ids. They must appear in the same order.
+        extract_type (str):
+            'all': extract all landmarks
+            'side': extract sideview landmarks
+        all kwargs are passed to the relevant extraction method
+        returns a list of result tuples in the same order as the images and input_ids.
+
+        ex.
+        images = [img1, img2, img3]
+        input_ids = ['vid1.mp4', 'vid2.mp4', 'vid3.mp4']
+        results = le.parallel_extract(images, input_ids, extract_type='side')
+        left1, right1, mp_lm_obj1 = results[0]
+        left2, right2, mp_lm_obj2 = results[1]
+        left3, right3, mp_lm_obj3 = results[2]
+        """
+        
+        if extract_type == 'all':
+            target_func = self._extract_landmarks_proc
+        elif extract_type == 'side':
+            target_func = self._extract_sideview_landmarks_proc
+        else:
+            raise ValueError('extract_type "{}" is invalid'.format(extract_type))
+        processes = []
+        queues = []
+        print('launching processes')
+        for image, input_id in zip(images, input_ids):
+            queue = mproc.Queue()
+            proc = mproc.Process(target=lambda: target_func(
+                queue, image, input_id=input_id, **kwargs
+            ))
+            proc.start()
+            processes.append(proc)
+            queues.append(queue)
+        results = []
+        print('processes started')
+        # retrieve all results from child processes
+        for queue, input_id in zip(queues, input_ids):
+            result, pose_instance = queue.get()
+            self.pose_extractor_instances[input_id] = pose_instance
+            results.append(result)
+        print('results retrieved')
+        # wait for all child processes to terminate
+        for proc in processes:
+            proc.join()
+        print('child procs joined')
+        return results
+
+    def _extract_landmarks_proc(self, queue, image, input_id, **kwargs):
+        print('child {} running'.format(input_id))
+        result = self.extract_landmarks(image, input_id=input_id, **kwargs)
+        queue.put((result, self.pose_extractor_instances[input_id]))
+        print('child {} finished'.format(input_id))
+
+    def _extract_sideview_landmarks_proc(self, queue, image, input_id, **kwargs):
+        print('child {} running'.format(input_id))
+        result = self.extract_sideview_landmarks(image, input_id=input_id, **kwargs)
+        queue.put((result, self.pose_extractor_instances[input_id]))
+        print('child {} finished'.format(input_id))
+
 
     def extract_landmarks(self, image, input_id='default', world_lms=True):
         """ Runs Mediapipe's pose model on the given image and reformats the

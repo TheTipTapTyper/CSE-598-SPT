@@ -59,8 +59,8 @@ def stitch_full_image(top_row_images, left_sv_image, right_sv_image, width, heig
 def render_images(raw_images, le, re):
     top_row_images = []
     side_view_arrays_dict = dict()
-    for idx, image in enumerate(raw_images):
-        extraction = le.extract_sideview_landmarks(image, input_id=idx)
+    results = le.parallel_extract(raw_images, list(range(len(raw_images))), extract_type='side')
+    for idx, (image, extraction) in enumerate(zip(raw_images, results)):
         if extraction is None: # pose detection failed
             top_row_images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             break

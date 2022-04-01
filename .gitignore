@@ -1,2 +1,4 @@
-camera_calibration/images/stereoLeft
-camera_calibration/images/stereoRight
+*.png
+*.txt
+*.mp4
+__pycache__

@@ -6,6 +6,7 @@ Class: CSE 598 Perception in Robotics
 Project: Deadlift Critic
 """
 from renderer import Renderer
+import lm_extractor as lm_ex
 from lm_extractor import LandmarkExtractor
 from vid_man import VideoManager
 import cv2
@@ -59,19 +60,23 @@ def stitch_full_image(top_row_images, left_sv_image, right_sv_image, width, heig
 def render_images(raw_images, le, re):
     top_row_images = []
     side_view_arrays_dict = dict()
-    for idx, image in enumerate(raw_images):
-        extraction = le.extract_sideview_landmarks(image)
-        if extraction is None: # pose detection failed
+    results = le.extract_landmarks(raw_images, list(range(len(raw_images))))
+    if not isinstance(results, list):
+        results = [results]
+    for idx, (image, result) in enumerate(zip(raw_images, results)):
+        mp_lm_obj, mp_lm_world_obj = result
+        if mp_lm_obj is None: # pose detection failed
             top_row_images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             break
-        left, right, mp_lm_obj = extraction
+        lm_array = lm_ex.landmark_array(mp_lm_world_obj, norm=True)
+        left, right = lm_ex.sideviews(lm_array, ground=True)
         top_row_images.append(re.render_landmarks(image, mp_lm_obj))
         side_view_arrays_dict['left{}'.format(idx)] = left
         side_view_arrays_dict['right{}'.format(idx)] = right
     # calculate weighted average of sideviews, if there are any
     w_avg_array_dict = dict()
     if len(side_view_arrays_dict) > 0: # at least one person in view
-        w_avg_array_dict['weighted avg'] = le.weighted_average(
+        w_avg_array_dict['weighted avg'] = lm_ex.weighted_average(
             side_view_arrays_dict.values()
         )
     # render side view images
@@ -90,7 +95,6 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
         smooth_landmarks=True,
         model_complexity=1,
     )
-    # main loop
     try:
         while vm.is_open():
             results = [vm.read(id) for id in inputs]
@@ -115,9 +119,7 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
                 vm.write(full_image, output_fn)
     finally:
         vm.release()
-
-
-
+        le.kill_processes()
 
 def record_2_cams(run_no):
     vm = VideoManager()
@@ -139,7 +141,6 @@ def record_2_cams(run_no):
         vm.write(image1, out1)
         vm.write(image2, out2)
 
-
 def test_cam_idx(idx):
     vm = VideoManager()
     vm.setup_input(idx)
@@ -149,18 +150,15 @@ def test_cam_idx(idx):
             continue
         vm.display(image)
 
-
-
-
 if __name__ == '__main__':
-    run_no = 1
+    run_no = 2
     with_film_fn = 'sample_video_pairs/cam_film_run{}.mp4'.format(run_no)
     no_film_fn = 'sample_video_pairs/cam_no_film_run{}.mp4'.format(run_no)
     inputs = [with_film_fn, no_film_fn]
     
     calibration_params = [
         'with_film_calibration.params',
-        'no_film_calibration_params'
+        'no_film_calibration.params'
     ]
-    inputs = [2]
-    run(inputs)
+    #inputs = [1]
+    run(inputs, calibration_params)

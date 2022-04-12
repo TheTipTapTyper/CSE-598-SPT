@@ -105,7 +105,7 @@ def landmark_array(mp_lm_obj, norm=True):
     lm_array = np.array([
         (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
     ])
-    if normalize:
+    if norm:
         lm_array = normalize(lm_array)
     return lm_array
 

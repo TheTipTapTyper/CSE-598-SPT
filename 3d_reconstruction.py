@@ -19,13 +19,13 @@ def filter_2D_points(left_landmarks, right_landmarks):
     
     return np.array(left_points), np.array(right_points)
 
-# open cv _traginualte
+# open cv_triangulate
 
 def helper(P):
     points = [i[0] for i in P]
     return [points[0]/ points[3], points[1]/points[3], points[2]/points[3]]
 
-def cv_traginualte(l_proj_matrix,r_proj_matrix,l_point,r_point):
+def cv_triangulate(l_proj_matrix,r_proj_matrix,l_point,r_point):
 
     cv_triangulation = []
     for index in range(0, 33):
@@ -37,15 +37,14 @@ def cv_traginualte(l_proj_matrix,r_proj_matrix,l_point,r_point):
 # direct linear transformation  
 def _DLT(P1, P2, point1, point2):
     
-    A = [point1[1]*P1[2,:] - P1[1,:],
-         P1[0,:] - point1[0]*P1[2,:],
-         point2[1]*P2[2,:] - P2[1,:],
-         P2[0,:] - point2[0]*P2[2,:]
-        ]
+    A = [
+        point1[1]*P1[2,:] - P1[1,:],
+        P1[0,:] - point1[0]*P1[2,:],
+        point2[1]*P2[2,:] - P2[1,:],
+        P2[0,:] - point2[0]*P2[2,:]
+    ]
     
     A = np.array(A).reshape((4,4))
-    # A = np.array(A).reshape((3,4))
- 
     B = A.transpose() @ A
     from scipy import linalg
     U, s, Vh = linalg.svd(B, full_matrices = False)
@@ -66,7 +65,7 @@ def two_d_to_three_d_reconstruction(l_landmark,r_landmark,left_proj_matrix, righ
 
     left_points, right_points = filter_2D_points(l_landmark, r_landmark)
 
-    cv_triangulation_points = cv_traginualte(left_proj_matrix, right_projection_matrix, left_points, right_points)
+    cv_triangulation_points = cv_triangulate(left_proj_matrix, right_projection_matrix, left_points, right_points)
 
     dlt_triangulation_points = dlt_triangulation(left_points, right_points, left_proj_matrix, right_proj_matrix)
 
@@ -109,14 +108,14 @@ if __name__ == "__main__":
     enable_segmentation=True,
     min_detection_confidence=0.5)
 
-    for left_iamge, right_iamge in zip(imagesLeft,imagesRight):
+    for left_image, right_image in zip(imagesLeft,imagesRight):
 
-        image1 = np.array(Image.open(left_iamge))
-        image2 = np.array(Image.open(right_iamge))
+        image1 = np.array(Image.open(left_image))
+        image2 = np.array(Image.open(right_image))
 
         land_marks ,  _ = lme.extract_landmarks([image1,image2],[1,2])
 
-        #return x,y,z but not visiblity
+        #return x,y,z but not visibility
         cv_triangulation_points, dlt_triangulation_points = two_d_to_three_d_reconstruction(land_marks[0],land_marks[1],left_projection_matrix,right_projection_matrix)
         
         print("CV:" , cv_triangulation_points.shape)

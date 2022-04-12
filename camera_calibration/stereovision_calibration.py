@@ -17,7 +17,7 @@ criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 objp = np.zeros((chessboardSize[0] * chessboardSize[1], 3), np.float32)
 objp[:,:2] = np.mgrid[0:chessboardSize[0],0:chessboardSize[1]].T.reshape(-1,2)
 
-size_of_chessboard_squares_mm = 20
+size_of_chessboard_squares_mm = 25
 objp = objp * size_of_chessboard_squares_mm
 
 # Arrays to store object points and image points from all the images.
@@ -25,8 +25,8 @@ objpoints = [] # 3d point in real world space
 imgpointsL = [] # 2d points in image plane.
 imgpointsR = [] # 2d points in image plane.
 
-imagesLeft = sorted(glob.glob('camera_calibration/images/stereoLeft/*.png'))
-imagesRight = sorted(glob.glob('camera_calibration/images/stereoRight/*.png'))
+imagesLeft = sorted(glob.glob('camera_calibration\images\stereoLeft\*.png'))
+imagesRight = sorted(glob.glob('camera_calibration\images\stereoRight\*.png'))
 
 print(len(imagesRight))
 
@@ -91,11 +91,12 @@ retStereo, newCameraMatrixL, distL, newCameraMatrixR, distR, rot, trans, essenti
 
 
 
-
 ########## Stereo Rectification #################################################
 
 rectifyScale= 1
 rectL, rectR, projMatrixL, projMatrixR, Q, roi_L, roi_R= cv.stereoRectify(newCameraMatrixL, distL, newCameraMatrixR, distR, grayL.shape[::-1], rot, trans, rectifyScale,(0,0))
+print("projMatrixR", projMatrixR)
+print("projMatrixL", projMatrixL)
 
 # stereoMapL = cv.initUndistortRectifyMap(newCameraMatrixL, distL, rectL, projMatrixL, grayL.shape[::-1], cv.CV_16SC2)
 # stereoMapR = cv.initUndistortRectifyMap(newCameraMatrixR, distR, rectR, projMatrixR, grayR.shape[::-1], cv.CV_16SC2)
@@ -122,31 +123,31 @@ rectL, rectR, projMatrixL, projMatrixR, Q, roi_L, roi_R= cv.stereoRectify(newCam
 
 
 # Open both cameras
-cap_right = cv.VideoCapture(1, cv.CAP_DSHOW)                    
-cap_left =  cv.VideoCapture(0, cv.CAP_DSHOW)
+# cap_right = cv.VideoCapture(1, cv.CAP_DSHOW)                    
+# cap_left =  cv.VideoCapture(0, cv.CAP_DSHOW)
 
 
-while(cap_right.isOpened() and cap_left.isOpened()):
+# while(cap_right.isOpened() and cap_left.isOpened()):
 
-    succes_right, frame_right = cap_right.read()
-    succes_left, frame_left = cap_left.read()
+#     succes_right, frame_right = cap_right.read()
+#     succes_left, frame_left = cap_left.read()
 
-    # Undistort and rectify images
-    frame_left = cv.undistort(frame_left, cameraMatrixL, distL, None, newCameraMatrixL)
-    frame_right = cv.undistort(frame_right, cameraMatrixR, distR, None, newCameraMatrixR)
+#     # Undistort and rectify images
+#     frame_left = cv.undistort(frame_left, cameraMatrixL, distL, None, newCameraMatrixL)
+#     frame_right = cv.undistort(frame_right, cameraMatrixR, distR, None, newCameraMatrixR)
                      
-    # Show the frames
-    cv.imshow("frame right", frame_right) 
-    cv.imshow("frame left", frame_left)
+#     # Show the frames
+#     cv.imshow("frame right", frame_right) 
+#     cv.imshow("frame left", frame_left)
 
 
-    # Hit "q" to close the window
-    if cv.waitKey(1) & 0xFF == ord('q'):
-        break
+#     # Hit "q" to close the window
+#     if cv.waitKey(1) & 0xFF == ord('q'):
+#         break
 
 
-# Release and destroy all windows before termination
-cap_right.release()
-cap_left.release()
+# # Release and destroy all windows before termination
+# cap_right.release()
+# cap_left.release()
 
-cv.destroyAllWindows()
+# cv.destroyAllWindows()

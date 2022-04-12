@@ -17,8 +17,8 @@ while cap.isOpened():
     if k == 27:
         break
     elif k == ord('s'): # wait for 's' key to save and exit
-        cv2.imwrite('camera_calibration\images\stereoLeft\imageL' + str(num) + '.png', img)
-        cv2.imwrite('camera_calibration\images\stereoRight\imageR' + str(num) + '.png', img2)
+        cv2.imwrite('camera_calibration\images\human_pose\imageL' + str(num) + '.png', img)
+        cv2.imwrite('camera_calibration\images\human_pose\imageR' + str(num) + '.png', img2)
         print("images saved!")
         num += 1
 

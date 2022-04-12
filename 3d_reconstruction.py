@@ -60,6 +60,13 @@ def dlt_triangulation(l_point, r_point, l_proj_matrix, r_proj_matrix):
         triangulated_points.append(triangulation)
     return np.array(triangulated_points)
 
+def triangulation_with_visibility(points, l_landmark, r_landmark):
+
+    tmp , index = [], 0
+    for l, r in zip(l_landmark.landmark, r_landmark.landmark):
+        tmp.append(np.append(points[index], (l.visibility + r.visibility) /  2))
+        index += 1
+    return np.array(tmp)
 
 def two_d_to_three_d_reconstruction(l_landmark,r_landmark,left_proj_matrix, right_proj_matrix):
 
@@ -69,8 +76,13 @@ def two_d_to_three_d_reconstruction(l_landmark,r_landmark,left_proj_matrix, righ
 
     dlt_triangulation_points = dlt_triangulation(left_points, right_points, left_proj_matrix, right_proj_matrix)
 
+    cv_triangulation_points_with_visibility = triangulation_with_visibility(cv_triangulation_points,l_landmark, r_landmark)
+
+    dlt_triangulation_points_with_visibility = triangulation_with_visibility(dlt_triangulation_points,l_landmark, r_landmark)
+    
     # this will return 33x3 landmark np array in world cord
-    return cv_triangulation_points, dlt_triangulation_points
+
+    return cv_triangulation_points_with_visibility, dlt_triangulation_points_with_visibility
 
 # testing 
 if __name__ == "__main__":
@@ -120,7 +132,7 @@ if __name__ == "__main__":
         
         print("CV:" , cv_triangulation_points.shape)
         print("Dlt:" ,dlt_triangulation_points.shape)
-        #print(cv_triangulation_points)
-        #print(dlt_triangulation_points)
+        print(cv_triangulation_points)
+        print(dlt_triangulation_points)
         break
     lme.kill_processes()

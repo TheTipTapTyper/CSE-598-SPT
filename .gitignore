@@ -2,3 +2,6 @@
 *.txt
 *.mp4
 __pycache__
+with_film_calibration.params
+no_film_calibration.params
+deadlift.jpg

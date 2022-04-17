@@ -193,7 +193,7 @@ def _normalize_rotation(lm_array):
     idxs = mp.solutions.pose.PoseLandmark
     left_hip_vec = lm_array[idxs.LEFT_HIP][[0,2]] # ignore y coord
     x_axis_vec = np.array([1,0])
-    theta = -_angle_between_vecs(left_hip_vec, x_axis_vec)
+    theta = -angle_between_vecs(left_hip_vec, x_axis_vec)
     # flip angle if in third or fourth quandrants
     if left_hip_vec[1] < 0:
         theta *= -1
@@ -205,7 +205,7 @@ def _normalize_rotation(lm_array):
     lm_array[:,[0,2]] = lm_array[:,[0,2]] @ rot_mat
     return lm_array
 
-def _angle_between_vecs(v1, v2):
+def angle_between_vecs(v1, v2):
     """ returns the angle between two vectors (in randians)
     Reference: https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python
     """

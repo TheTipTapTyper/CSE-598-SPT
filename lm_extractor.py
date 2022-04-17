@@ -9,6 +9,8 @@ Project: Deadlift Critic
 import mediapipe as mp
 import numpy as np
 import multiprocessing as mproc
+from vec_math import angle_between_vecs
+
 
 ANKLE = 0
 KNEE = 1
@@ -18,6 +20,9 @@ EAR = 4
 ELBOW = 5
 WRIST = 6
 INDEX = 7
+
+X_IDX, Y_IDX, Z_IDX, VIS_IDX = 0, 1, 2, 3
+
 
 class LandmarkExtractor:
     """ Capable of maintaining multiple subprocesses which each contain an instance
@@ -145,14 +150,14 @@ def sideviews(lm_array, ground=True):
     right = lm_array[[
         idxs.RIGHT_ANKLE, idxs.RIGHT_KNEE, idxs.RIGHT_HIP, idxs.RIGHT_SHOULDER,
         idxs.RIGHT_EAR, idxs.RIGHT_ELBOW, idxs.RIGHT_WRIST, idxs.RIGHT_INDEX
-    ]][:,[2,1,3]]
+    ]][:,[Z_IDX,Y_IDX,VIS_IDX]]
     left = lm_array[[
         idxs.LEFT_ANKLE, idxs.LEFT_KNEE, idxs.LEFT_HIP, idxs.LEFT_SHOULDER,
         idxs.LEFT_EAR, idxs.LEFT_ELBOW, idxs.LEFT_WRIST, idxs.LEFT_INDEX
-    ]][:,[2,1,3]]
+    ]][:,[Z_IDX,Y_IDX,VIS_IDX]]
     #flip vertically
-    right[:, 1] = -right[:, 1]
-    left[:, 1] = -left[:, 1]
+    right[:, Y_IDX] = -right[:, Y_IDX]
+    left[:, Y_IDX] = -left[:, Y_IDX]
     if ground:
         # make ankle the origin
         right[:, :-1] -= right[ANKLE, :-1]
@@ -177,11 +182,11 @@ def _normalize_translation(lm_array):
         'lm_array is not a proper landmark array (33x4)'
     # find avg hip position
     idxs = mp.solutions.pose.PoseLandmark
-    left_hip = lm_array[idxs.LEFT_HIP][:3] # don't need visibility
-    right_hip = lm_array[idxs.RIGHT_HIP][:3]
+    left_hip = lm_array[idxs.LEFT_HIP][:VIS_IDX] # don't need visibility
+    right_hip = lm_array[idxs.RIGHT_HIP][:VIS_IDX]
     hip_center = np.mean([left_hip, right_hip], axis=0)
     # subtract center from all points
-    lm_array[:,:3] -= hip_center
+    lm_array[:,:VIS_IDX] -= hip_center
     return lm_array
 
 def _normalize_rotation(lm_array):
@@ -191,7 +196,7 @@ def _normalize_rotation(lm_array):
     assert isinstance(lm_array, np.ndarray) and lm_array.shape == (33, 4)
     # find angle between left hip vector and x axis on the xz plane.
     idxs = mp.solutions.pose.PoseLandmark
-    left_hip_vec = lm_array[idxs.LEFT_HIP][[0,2]] # ignore y coord
+    left_hip_vec = lm_array[idxs.LEFT_HIP][[X_IDX,Z_IDX]] # ignore y coord
     x_axis_vec = np.array([1,0])
     theta = -angle_between_vecs(left_hip_vec, x_axis_vec)
     # flip angle if in third or fourth quandrants
@@ -202,16 +207,8 @@ def _normalize_rotation(lm_array):
         [np.cos(theta), np.sin(theta)],
         [-np.sin(theta), np.cos(theta)]
     ])
-    lm_array[:,[0,2]] = lm_array[:,[0,2]] @ rot_mat
+    lm_array[:,[X_IDX,Z_IDX]] = lm_array[:,[X_IDX,Z_IDX]] @ rot_mat
     return lm_array
-
-def angle_between_vecs(v1, v2):
-    """ returns the angle between two vectors (in randians)
-    Reference: https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python
-    """
-    v1_u = v1 / np.linalg.norm(v1)
-    v2_u = v2 / np.linalg.norm(v2)
-    return np.arccos(np.dot(v1_u, v2_u))
 
 def _pose_estimator_proc(con, **kwargs):
     """ Function to be started as a subprocess. Parent sends it images which it

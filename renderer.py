@@ -7,7 +7,8 @@ Project: Deadlift Critic
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from lm_extractor import SHOULDER, EAR, ELBOW, INDEX, angle_between_vecs
+from lm_extractor import SHOULDER, EAR, ELBOW, INDEX
+from vec_math import angle_between_vecs
 import cv2
 import mediapipe as mp
 

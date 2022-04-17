@@ -14,7 +14,8 @@ import cv2
 import mediapipe as mp
 from heuristics import \
     neck_angle_heuristic, \
-    bar_angle_heuristic
+    bar_angle_heuristic, \
+    feet_width_heuristic
 
 
 SIDE_IMG_WIDTH_M = 2
@@ -28,6 +29,7 @@ BODY_LINE = 'body'
 HEAD_LINE = 'line'
 BAR_LINE = 'bar'
 NECK_H_LINE = 'neck_h'
+FEET_WIDTH_LINE = 'feet'
 
 DEFAULT_COLORS = [
     'black', 'red', 'blue', 'green', 'pink', 'orage', 'yellow', 'teal',
@@ -35,16 +37,23 @@ DEFAULT_COLORS = [
 ]
 GOOD_COLOR = 'lime'
 BAD_COLOR = 'red'
+
 SIDE_VIEW = 'SIDE'
 FRONT_VIEW = 'front'
 CREATE = 'create'
 UPDATE = 'update'
+
 BODY_LMS_HEAD_IDX = 11
 BODY_LMS_LEFT_HAND_IDX = 6
 BODY_LMS_RIGHT_HAND_IDX = 16
+BODY_LMS_LEFT_ANKLE_INDEX = 0
+BODY_LMS_RIGHT_ANKLE_INDEX = -1
+
 FV_BAR_LEN = 1.25 # meters
 FV_PLATE_WIDTH = .1
 FV_PLATE_HEIGHT = .4
+FEET_WIDTH_H_VERT_OFFSET = .2
+FEET_WIDTH_H_BAR_HEIGHT = .1
 
 
 class Renderer:
@@ -224,10 +233,18 @@ class Renderer:
             color=GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR,
             animated=True
         )
+        feet_h_coords = self._feet_width_heuristic_coords(body_lms)
+        feet_width_h, = self.plots[image_id][AXES].plot(
+            (feet_h_coords[:, X_IDX]), 
+            (feet_h_coords[:, Y_IDX]),
+            color=GOOD_COLOR if feet_width_heuristic(fv_lm_arr) else BAD_COLOR,
+            linewidth=self.linewidth,
+            animated=True
+        )
         if legend:
             self.plots[image_id][AXES].legend()
         self.plots[image_id][LINES_DICT][label] = {
-            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar
+            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar, FEET_WIDTH_LINE: feet_width_h
         }
 
     def _update_frontview_artists(self, label, fv_lm_arr, image_id):
@@ -248,6 +265,27 @@ class Renderer:
         self.plots[image_id][LINES_DICT][label][BAR_LINE].set_color(
             GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR
         )
+        feet_h_coords = self._feet_width_heuristic_coords(body_lms)
+        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_LINE].set_data(
+            (feet_h_coords[:, X_IDX]), 
+            (feet_h_coords[:, Y_IDX]),
+        )
+        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_LINE].set_color(
+            GOOD_COLOR if feet_width_heuristic(fv_lm_arr) else BAD_COLOR
+        )
+
+
+    def _feet_width_heuristic_coords(self, body_lms):
+        left_foot = body_lms[BODY_LMS_LEFT_ANKLE_INDEX, [X_IDX, Y_IDX]]
+        right_foot = body_lms[BODY_LMS_RIGHT_ANKLE_INDEX, [X_IDX, Y_IDX]]
+        return np.array([
+            [left_foot[0], left_foot[1] + FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [left_foot[0], left_foot[1] - FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [left_foot[0], left_foot[1] + FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], right_foot[1] + FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], right_foot[1] - FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], right_foot[1] + FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+        ])
 
     def _front_view_bar_coords(self, body_lms, image_id='foo'):
         """ Calculate the ends of the barbell for the front view based on the

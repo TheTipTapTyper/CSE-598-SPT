@@ -60,6 +60,7 @@ def stitch_full_image(top_row_images, left_sv_image, right_sv_image, width, heig
 def render_images(raw_images, le, re):
     top_row_images = []
     side_view_arrays_dict = dict()
+    front_view_arrays_dict = dict()
     results = le.extract_landmarks(raw_images, list(range(len(raw_images))))
     if not isinstance(results, list):
         results = [results]
@@ -73,16 +74,23 @@ def render_images(raw_images, le, re):
         top_row_images.append(re.render_landmarks(image, mp_lm_obj))
         side_view_arrays_dict['left{}'.format(idx)] = left
         side_view_arrays_dict['right{}'.format(idx)] = right
+        front_view_arrays_dict['front{}'.format(idx)] = lm_array
     # calculate weighted average of sideviews, if there are any
-    w_avg_array_dict = dict()
+    sv_w_avg_array_dict = dict()
+    fv_w_avg_array_dict = dict()
     if len(side_view_arrays_dict) > 0: # at least one person in view
-        w_avg_array_dict['weighted avg'] = lm_ex.weighted_average(
+        sv_w_avg_array_dict['weighted avg'] = lm_ex.weighted_average(
             side_view_arrays_dict.values()
         )
+        fv_w_avg_array_dict['weighted avg'] = lm_ex.weighted_average(
+            front_view_arrays_dict.values()
+        )
     # render side view images
-    left_sv_image = re.render_sideview(side_view_arrays_dict, image_id='left')
-    right_sv_image = re.render_sideview(w_avg_array_dict, image_id='right')
-    return top_row_images, left_sv_image, right_sv_image
+    #sv1_image = re.render_sideview(side_view_arrays_dict, image_id='sv')
+    sv2_image = re.render_sideview(sv_w_avg_array_dict, image_id='sv')
+    # fv1_image = re.render_frontview(front_view_arrays_dict, image_id='fv1')
+    fv2_image = re.render_frontview(fv_w_avg_array_dict, image_id='fv2')
+    return top_row_images, sv2_image, fv2_image
 
 
 def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=1080):

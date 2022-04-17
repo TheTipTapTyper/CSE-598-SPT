@@ -8,11 +8,12 @@ Project: Deadlift Critic
 from cv2 import COLOR_RGB2BGR
 import matplotlib.pyplot as plt
 import numpy as np
-from lm_extractor import SHOULDER, EAR, ELBOW, INDEX, X_IDX, Y_IDX, Z_IDX
+from lm_extractor import SHOULDER, EAR, ELBOW, INDEX, KNEE, X_IDX, Y_IDX, Z_IDX
 from vec_math import angle_between_vecs
 import cv2
 import mediapipe as mp
 from heuristics import \
+    knee_bar_heuristic, \
     neck_angle_heuristic, \
     bar_angle_heuristic, \
     feet_width_heuristic
@@ -29,7 +30,8 @@ BODY_LINE = 'body'
 HEAD_LINE = 'line'
 BAR_LINE = 'bar'
 NECK_H_LINE = 'neck_h'
-FEET_WIDTH_LINE = 'feet'
+FEET_WIDTH_H_LINE = 'feet_h'
+KNEE_BAR_H_LINE = 'knee_bar_h'
 
 DEFAULT_COLORS = [
     'black', 'red', 'blue', 'green', 'pink', 'orage', 'yellow', 'teal',
@@ -52,8 +54,8 @@ BODY_LMS_RIGHT_ANKLE_INDEX = -1
 FV_BAR_LEN = 1.25 # meters
 FV_PLATE_WIDTH = .1
 FV_PLATE_HEIGHT = .4
-FEET_WIDTH_H_VERT_OFFSET = .1
-FEET_WIDTH_H_BAR_HEIGHT = .05
+H_BAR_VERT_OFFSET = .1
+H_BAR_HEIGHT = .05
 
 
 class Renderer:
@@ -198,6 +200,18 @@ class Renderer:
         fig.canvas.blit(ax.bbox)
         fig.canvas.flush_events()
 
+    def _horizonta_heuristic_bar_coords(self, idx1, idx2, lm_array):
+        lm1 = lm_array[idx1, [X_IDX, Y_IDX]]
+        lm2 = lm_array[idx2, [X_IDX, Y_IDX]]
+        return np.array([
+            [lm1[0], H_BAR_HEIGHT + H_BAR_VERT_OFFSET],
+            [lm1[0], -H_BAR_HEIGHT + H_BAR_VERT_OFFSET],
+            [lm1[0], H_BAR_VERT_OFFSET],
+            [lm2[0], H_BAR_VERT_OFFSET],
+            [lm2[0], -H_BAR_HEIGHT + H_BAR_VERT_OFFSET],
+            [lm2[0], H_BAR_HEIGHT + H_BAR_VERT_OFFSET],
+        ])
+
     ## front view specific methods
 
     def _create_frontview_artists(self, label, fv_lm_arr, image_id, color, legend):
@@ -233,7 +247,11 @@ class Renderer:
             color=GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR,
             animated=True
         )
-        feet_h_coords = self._feet_width_heuristic_coords(body_lms)
+        feet_h_coords = self._horizonta_heuristic_bar_coords(
+            BODY_LMS_LEFT_ANKLE_INDEX,
+            BODY_LMS_RIGHT_ANKLE_INDEX,
+            body_lms
+        )
         feet_width_h, = self.plots[image_id][AXES].plot(
             (feet_h_coords[:, X_IDX]), 
             (feet_h_coords[:, Y_IDX]),
@@ -244,7 +262,7 @@ class Renderer:
         if legend:
             self.plots[image_id][AXES].legend()
         self.plots[image_id][LINES_DICT][label] = {
-            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar, FEET_WIDTH_LINE: feet_width_h
+            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar, FEET_WIDTH_H_LINE: feet_width_h
         }
 
     def _update_frontview_artists(self, label, fv_lm_arr, image_id):
@@ -265,27 +283,18 @@ class Renderer:
         self.plots[image_id][LINES_DICT][label][BAR_LINE].set_color(
             GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR
         )
-        feet_h_coords = self._feet_width_heuristic_coords(body_lms)
-        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_LINE].set_data(
+        feet_h_coords = self._horizonta_heuristic_bar_coords(
+            BODY_LMS_LEFT_ANKLE_INDEX,
+            BODY_LMS_RIGHT_ANKLE_INDEX,
+            body_lms
+        )
+        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_H_LINE].set_data(
             (feet_h_coords[:, X_IDX]), 
             (feet_h_coords[:, Y_IDX]),
         )
-        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_LINE].set_color(
+        self.plots[image_id][LINES_DICT][label][FEET_WIDTH_H_LINE].set_color(
             GOOD_COLOR if feet_width_heuristic(fv_lm_arr) else BAD_COLOR
         )
-
-
-    def _feet_width_heuristic_coords(self, body_lms):
-        left_foot = body_lms[BODY_LMS_LEFT_ANKLE_INDEX, [X_IDX, Y_IDX]]
-        right_foot = body_lms[BODY_LMS_RIGHT_ANKLE_INDEX, [X_IDX, Y_IDX]]
-        return np.array([
-            [left_foot[0], FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [left_foot[0], -FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [left_foot[0], FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], -FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-        ])
 
     def _front_view_bar_coords(self, body_lms, image_id='foo'):
         """ Calculate the ends of the barbell for the front view based on the
@@ -430,16 +439,22 @@ class Renderer:
             markeredgewidth=self.joint_edge_width * 2,
             markeredgecolor=GOOD_COLOR if neck_angle_heuristic(sv_lm_arr) else BAD_COLOR,
             animated=True
-            # 'o',
-            # markerfacecolor='r',
-            # markeredgecolor='r',
-            # markersize=self.joint_size * 3,
-            # animated=True
+        )
+        knee_bar_h_coords = self._horizonta_heuristic_bar_coords(
+            KNEE, INDEX, sv_lm_arr
+        )
+        knee_bar_h, = self.plots[image_id][AXES].plot(
+            (knee_bar_h_coords[:, X_IDX]), 
+            (knee_bar_h_coords[:, Y_IDX]),
+            color=GOOD_COLOR if knee_bar_heuristic(sv_lm_arr) else BAD_COLOR,
+            linewidth=self.linewidth,
+            animated=True
         )
         if legend:
             self.plots[image_id][AXES].legend()
         self.plots[image_id][LINES_DICT][label] = {
             BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar, NECK_H_LINE: neck_h,
+            KNEE_BAR_H_LINE: knee_bar_h,
         }
 
     def _update_sideview_artists(self, label, sv_lm_arr, image_id):
@@ -462,6 +477,16 @@ class Renderer:
         )
         self.plots[image_id][LINES_DICT][label][NECK_H_LINE].set_markeredgecolor(
             GOOD_COLOR if neck_angle_heuristic(sv_lm_arr) else BAD_COLOR
+        )
+        knee_bar_h_coords = self._horizonta_heuristic_bar_coords(
+            KNEE, INDEX, sv_lm_arr
+        )
+        self.plots[image_id][LINES_DICT][label][KNEE_BAR_H_LINE].set_data(
+            (knee_bar_h_coords[:, X_IDX]), 
+            (knee_bar_h_coords[:, Y_IDX])
+        )
+        self.plots[image_id][LINES_DICT][label][KNEE_BAR_H_LINE].set_color(
+            GOOD_COLOR if knee_bar_heuristic(sv_lm_arr) else BAD_COLOR
         )
 
     def _prep_lms_for_sideview_plot(self, lms):

@@ -12,7 +12,9 @@ from lm_extractor import SHOULDER, EAR, ELBOW, INDEX, X_IDX, Y_IDX, Z_IDX
 from vec_math import angle_between_vecs
 import cv2
 import mediapipe as mp
-from heuristics import neck_angle_heuristic
+from heuristics import \
+    neck_angle_heuristic, \
+    bar_angle_heuristic
 
 
 SIDE_IMG_WIDTH_M = 2
@@ -219,7 +221,7 @@ class Renderer:
         bar, = self.plots[image_id][AXES].plot(
             (bar_coords[:, X_IDX]), 
             (bar_coords[:, Y_IDX]),
-            color=color,
+            color=GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR,
             animated=True
         )
         if legend:
@@ -242,6 +244,9 @@ class Renderer:
         self.plots[image_id][LINES_DICT][label][BAR_LINE].set_data(
             (bar_coords[:, X_IDX]), 
             (bar_coords[:, Y_IDX]),
+        )
+        self.plots[image_id][LINES_DICT][label][BAR_LINE].set_color(
+            GOOD_COLOR if bar_angle_heuristic(fv_lm_arr) else BAD_COLOR
         )
 
     def _front_view_bar_coords(self, body_lms, image_id='foo'):

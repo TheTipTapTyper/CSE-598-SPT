@@ -14,7 +14,7 @@ import lm_extractor as lme
 MAX_KNEE_BAR_DIST = .2
 MIN_NECK_ANGLE = 165 * np.pi / 180
 MAX_FEET_SHOULDER_WIDTH_DIFF = .2
-MAX_BAR_ANGLE = 15 * np.pi / 180
+MAX_BAR_ANGLE = 10 * np.pi / 180
 
 
 
@@ -84,7 +84,6 @@ def neck_angle_heuristic(sv_lm_array):
     Returns: bool
     """
     angle = neck_angle(sv_lm_array)
-    print(angle * 180 / np.pi)
     return angle > MIN_NECK_ANGLE
 
 ## Front View Metrics ##

@@ -52,8 +52,8 @@ BODY_LMS_RIGHT_ANKLE_INDEX = -1
 FV_BAR_LEN = 1.25 # meters
 FV_PLATE_WIDTH = .1
 FV_PLATE_HEIGHT = .4
-FEET_WIDTH_H_VERT_OFFSET = .2
-FEET_WIDTH_H_BAR_HEIGHT = .1
+FEET_WIDTH_H_VERT_OFFSET = .1
+FEET_WIDTH_H_BAR_HEIGHT = .05
 
 
 class Renderer:
@@ -279,12 +279,12 @@ class Renderer:
         left_foot = body_lms[BODY_LMS_LEFT_ANKLE_INDEX, [X_IDX, Y_IDX]]
         right_foot = body_lms[BODY_LMS_RIGHT_ANKLE_INDEX, [X_IDX, Y_IDX]]
         return np.array([
-            [left_foot[0], left_foot[1] + FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [left_foot[0], left_foot[1] - FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [left_foot[0], left_foot[1] + FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], right_foot[1] + FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], right_foot[1] - FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
-            [right_foot[0], right_foot[1] + FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [left_foot[0], FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [left_foot[0], -FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [left_foot[0], FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], -FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
+            [right_foot[0], FEET_WIDTH_H_BAR_HEIGHT + FEET_WIDTH_H_VERT_OFFSET],
         ])
 
     def _front_view_bar_coords(self, body_lms, image_id='foo'):
@@ -382,14 +382,6 @@ class Renderer:
             lms[idxs.RIGHT_HIP],
             lms[idxs.RIGHT_KNEE],
             lms[idxs.RIGHT_ANKLE],
-            # lms[idxs.LEFT_ANKLE], lms[idxs.LEFT_KNEE], lms[idxs.LEFT_HIP],
-            # lms[idxs.LEFT_SHOULDER], lms[idxs.LEFT_ELBOW], lms[idxs.LEFT_WRIST],
-            # lms[idxs.LEFT_INDEX], lms[idxs.LEFT_WRIST], lms[idxs.LEFT_ELBOW],
-            # lms[idxs.LEFT_SHOULDER], mid_shoulder, head, mid_shoulder,
-            # lms[idxs.RIGHT_SHOULDER], lms[idxs.RIGHT_ELBOW], lms[idxs.RIGHT_WRIST],
-            # lms[idxs.RIGHT_INDEX], lms[idxs.RIGHT_WRIST], lms[idxs.RIGHT_ELBOW],
-            # lms[idxs.RIGHT_SHOULDER], lms[idxs.RIGHT_HIP], lms[idxs.LEFT_HIP],
-            # lms[idxs.RIGHT_HIP],lms[idxs.RIGHT_KNEE], lms[idxs.RIGHT_ANKLE],
         ])
 
     ## sideview specific methods ##

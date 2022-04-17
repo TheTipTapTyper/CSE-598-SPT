@@ -7,99 +7,137 @@ Project: Deadlift Critic
 """
 
 import numpy as np  
-from numpy.linalg import norm 
-import math
+from vec_math import angle_between_vecs, distance_between_vecs
+import lm_extractor as lme
 
 
-def distance(x,y):
-    """Returns the absolute distance between two points. """
-    dist = norm(x-y, 2)
-    return dist
-    
-def angle(Vec1, Vec2):
-    """Returns the angle between two vectors. """
-    
-    cosine_angle = np.dot(Vec1, Vec2)/(np.dot(Vec1,Vec1)*np.dot(Vec2,Vec2))
-    angle = math.degrees(math.acos(cosine_angle))
-    return angle
+MAX_KNEE_BAR_DIST = .2
+MAX_NECK_ANGLE = 15 * np.pi / 180
+MAX_FEET_SHOULDER_WIDTH_DIFF = .2
+MAX_BAR_ANGLE = 15 * np.pi / 180
 
 
-def knee_to_bar_dist(weightedAvg):
-        """Accepts the 8x3 weighted average landmark array. Returns the approximate distance 
-        between the knees and the barbell (approximated by hands), taken along the axis normal to the barbell."""
 
-        kneeAvg = weightedAvg[1, 0]
-        barAvg = weightedAvg[6, 0]
-        kneeToBarDist = distance(kneeAvg,barAvg)
-        return kneeToBarDist
+## Side View Metrics ###
 
-def knee_to_shoulder_dist(landmarks):
-        """Accepts 33x4 numpy array of landmark coordinates, returns the approximate distance 
-        between the knees and the shoulders. 
-        """
-        leftKnee = landmarks[25, 0:2]
-        rightKnee = landmarks[26, 0:2]
-        leftShoulder = landmarks[11, 0:2]
-        rightShoulder = landmarks[12, 0:2]
-        kneeToShoulderDist = max(distance(leftKnee,leftShoulder),distance(rightKnee,rightShoulder))
+def knee_bar_dist(sv_lm_array):
+    """ Calculates horizontal distance between the middle of the bar and the knee.
+    Input: 8x3 sideview landmark array
+    Returns: horizontal distance between barbell (hands) and knee
+    """
+    knee = sv_lm_array[lme.KNEE, lme.X_IDX]
+    bar = sv_lm_array[lme.INDEX, lme.X_IDX]
+    return distance_between_vecs(knee, bar)
 
-        return kneeToShoulderDist
+def knee_shoulder_dist(sv_lm_array):
+    """ Calculates horizontal distance between the knee and the shoulder.
+    Input: 8x3 sideview landmark array
+    Returns: horizontal distance between the knee and the shoulder
+    """
+    knee = sv_lm_array[lme.KNEE, lme.X_IDX]
+    shoulder = sv_lm_array[lme.SHOULDER, lme.X_IDX]
+    return distance_between_vecs(knee, shoulder)
 
-def feet_position(self, landmarks):
-        """Accepts 33x4 numpy array of landmark coordinates; ensures that feet are roughly 
-        shoulder width apart"""
-        
-        leftFoot = landmarks[27, 0:2]
-        rightFoot = landmarks[28, 0:2]
-        leftShoulder = landmarks[11, 0:2]
-        rightShoulder = landmarks[12, 0:2]
-        
+def knee_angle(sv_lm_array):
+    """ Calculates the angle of the knee joint.
+    Input: 8x3 sideview landmark array
+    Returns: angle of the knee joint in radians
+    """
+    knee = sv_lm_array[lme.KNEE, [lme.X_IDX, lme.Y_IDX]]
+    ankle = sv_lm_array[lme.ANKLE, [lme.X_IDX, lme.Y_IDX]] - knee
+    hip = sv_lm_array[lme.HIP, [lme.X_IDX, lme.Y_IDX]] - knee
+    return angle_between_vecs(ankle, hip)
 
-        distBetweenShoulders = distance(leftShoulder,rightShoulder)
-        distBetweenFeet = distance(leftFoot,rightFoot)
-
-        if (distBetweenShoulders*0.98 <= distBetweenFeet) and (distBetweenFeet <= distBetweenShoulders*1.02):
-            return True
-
-        return False
-
-    # def barbell_position(self):
-    #     """Takes left- and right-sided landmark coordinates as input, returns the position of the barbell
-    #     by approximating the barbell as the straight line which connects both of the hands"""
-
-    # def hips_at_ground(self):
-    #     """ Proper deadlift form requires that the hips are below the shoulders and above the knees at the
-    #     ground (AKA rest) position. This method checks the relative positions of the three joints ,
-    #     returning a pass/fail."""
+def neck_angle(sv_lm_array):
+    """ Calculates the angle of the neck joint.
+    Input: 8x3 sideview landmark array
+    Returns: angle of the neck joint in radians
+    """
+    shoulder = sv_lm_array[lme.SHOULDER, [lme.X_IDX, lme.Y_IDX]]
+    ear = sv_lm_array[lme.EAR, [lme.X_IDX, lme.Y_IDX]] - shoulder
+    hip = sv_lm_array[lme.HIP, [lme.X_IDX, lme.Y_IDX]] - shoulder
+    return angle_between_vecs(ear, hip)
 
 
-def neck_angle(self, weightedAvg):
-        """Measures the angle made by the neck and the spine. The angle should be approximately equal to zero
-        throughout the course of the lift. Returns Pass/Fail. Extract the 2D (x,y) pair which corresponds to each
-        of the hip, shoulder, and ear joints. From these pairs, construct vectors which correspond to the spine
-        (here, the spine is approximated as the line connecting the hips and shoulders) and the neck
-        (similarly corresponding to the line which connects the shoulders to the ears). With these two lines,
-        we use the relationship between the dot product of two vectors and the angle of the cosine between them."""
+## Side View Heuristics ##
 
-        spineVector = weightedAvg[3, 0:2] - weightedAvg[2,0:2]
-        neckVector = weightedAvg[4, 0:2] - weightedAvg[3,0:2]
-        degree = angle(spineVector,neckVector)
+def knee_bar_heuristic(sv_lm_array):
+    """ Determines whether the knee-to-bar distance is within the desired bounds.
+    Input: 8x3 sideview landmark array
+    Returns: bool
+    """
+    dist = knee_bar_dist(sv_lm_array)
+    return dist < MAX_KNEE_BAR_DIST
 
-        if abs(degree) >= 5:
-            return False
+def knee_shoulder_heuristic(sv_lm_array):
+    """ Determines whether the knee-to-shoulder distance is within the desired
+    bounds, as a function of the knee angle. Knee angle is used to approximate
+    the phase of the deadlift.
+    Input: 8x3 sideview landmark array
+    Returns: bool
+    """
+    pass
 
-        return True
+def neck_angle_heuristic(sv_lm_array):
+    """ Determines whether the neck angle is within the desired bounds.
+    Input: 8x3 sideview landmark array
+    Returns: bool
+    """
+    angle = neck_angle(sv_lm_array)
+    return angle < MAX_NECK_ANGLE
 
+## Front View Metrics ##
 
-"""
-Revisions:
-    
-    This file should be a collection of individual methods. No classes.
-    Furthermore, decompose pre-existing methods. I.e., Decompose neck_angles
-    into two methods: one which calculates the angle between two vectors, one
-    which uses the aforementioned method to specifically return the neck angle.
+def feet_width(lm_array):
+    """ Calculate the distance between the feet in the xz-plane.
+    Input: 33x4 landmark array
+    Returns: distance between feet
+    """
+    idxs = lme.mp.solutions.pose.PoseLandmark
+    left_ankle = lm_array[idxs.LEFT_ANKLE, [lme.X_IDX, lme.Z_IDX]]
+    right_ankle = lm_array[idxs.RIGHT_ANKLE, [lme.Y_IDX, lme.Z_IDX]]
+    return distance_between_vecs(left_ankle, right_ankle)
 
-"""
+def shoulder_width(lm_array):
+    """ Calculate the distance between the shoulders in the xz-plane.
+    Input: 33x4 landmark array
+    Returns: distance between shoulders
+    """
+    idxs = lme.mp.solutions.pose.PoseLandmark
+    left_shoulder = lm_array[idxs.LEFT_SHOULDER, [lme.X_IDX, lme.Z_IDX]]
+    right_shoulder = lm_array[idxs.RIGHT_SHOULDER, [lme.Y_IDX, lme.Z_IDX]]
+    return distance_between_vecs(left_shoulder, right_shoulder)
+
+def bar_angle(lm_array):
+    """ Calculates the angle between the bar and the x axis.
+    Input: 33x4 landmark array
+    Returns: angle between bar and horizontal in radians
+    """
+    idxs = lme.mp.solutions.pose.PoseLandmark
+    left_hand = lm_array[idxs.LEFT_INDEX, [lme.X_IDX, lme.Y_IDX]]
+    right_hand = lm_array[idxs.RIGHT_INDEX, [lme.X_IDX, lme.Y_IDX]]
+    bar_mid = np.mean([left_hand, right_hand], axis=0)
+    bar_direction = left_hand - bar_mid
+    return angle_between_vecs(bar_direction, np.array([1, 0]))
+
+## Front View Heuristics ##
+
+def feet_width_heuristic(lm_array):
+    """ Determines whether the feet are close enough to shoulder width apart.
+    Input: 33x4 landmark array
+    Returns: bool
+    """
+    diff = np.abs(feet_width(lm_array) - shoulder_width(lm_array))
+    return diff < MAX_FEET_SHOULDER_WIDTH_DIFF
+
+def bar_angle_heuristic(lm_array):
+    """ Determines whether the bar angle is within the desired bounds.
+    Input: 33x4 landmark array
+    Returns: bool
+    """
+    angle = bar_angle(lm_array)
+    return angle < MAX_BAR_ANGLE
+
 
 
                 

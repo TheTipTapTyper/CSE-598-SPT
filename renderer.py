@@ -5,12 +5,14 @@ Created: 3/12/2022
 Class: CSE 598 Perception in Robotics
 Project: Deadlift Critic
 """
+from cv2 import COLOR_RGB2BGR
 import matplotlib.pyplot as plt
 import numpy as np
-from lm_extractor import SHOULDER, EAR, ELBOW, INDEX
+from lm_extractor import SHOULDER, EAR, ELBOW, INDEX, X_IDX, Y_IDX, Z_IDX
 from vec_math import angle_between_vecs
 import cv2
 import mediapipe as mp
+from heuristics import neck_angle_heuristic
 
 
 SIDE_IMG_WIDTH_M = 2
@@ -19,13 +21,18 @@ FIG = 'fig'
 BACKGROUND = 'bg' # used in blitting (https://matplotlib.org/stable/tutorials/advanced/blitting.html)
 AXES = 'ax'
 LINES_DICT = 'lines'
+
 BODY_LINE = 'body'
 HEAD_LINE = 'line'
 BAR_LINE = 'bar'
+NECK_H_LINE = 'neck_h'
+
 DEFAULT_COLORS = [
     'black', 'red', 'blue', 'green', 'pink', 'orage', 'yellow', 'teal',
     'lime', 'purple', 'sandybrown', 'cyan', 'deeppink', 'coral', 'wheat', 'grey'
 ]
+GOOD_COLOR = 'lime'
+BAD_COLOR = 'red'
 SIDE_VIEW = 'SIDE'
 FRONT_VIEW = 'front'
 CREATE = 'create'
@@ -63,6 +70,7 @@ class Renderer:
         """ Draws the mediapipe extracted landmarks onto the input image.
         Image is expected to be in RGB format.
         mp_lm_obj is the landmark object returned medeiapipe, not a numpy array.
+        returned image is in BGR (opencv) format
         """
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         self.mp_drawing.draw_landmarks(
@@ -82,6 +90,8 @@ class Renderer:
         calls can simply update the data rather than drawing from scratch. However,
         this requires the label names and image_id to remain unchanged between 
         subsequent calls.
+
+        returned image is in BGR (opencv) format
         """
         assert isinstance(landmarks_dict, dict) and all(
             isinstance(arr, np.ndarray) and arr.shape == (8,3) 
@@ -98,6 +108,8 @@ class Renderer:
         calls can simply update the data rather than drawing from scratch. However,
         this requires the label names and image_id to remain unchanged between 
         subsequent calls.
+
+        returned image is in BGR (opencv) format
         """
         assert isinstance(landmarks_dict, dict) and all(
             isinstance(arr, np.ndarray) and arr.shape == (33,4) 
@@ -122,7 +134,11 @@ class Renderer:
         self._restore_background(image_id)
         self._draw_artists(image_id)
         fig = self.plots[image_id][FIG]
-        return np.array(fig.canvas.renderer._renderer)[:,:,:3]
+        image = cv2.cvtColor(
+            np.array(fig.canvas.renderer._renderer)[:,:,:3], 
+            cv2.COLOR_RGB2BGR
+        )
+        return image
 
     ## methods shared by all views ##
  
@@ -178,7 +194,7 @@ class Renderer:
         body_lms = self._prep_lms_for_frontview_plot(fv_lm_arr)
         bar_coords = self._front_view_bar_coords(body_lms)
         body, = self.plots[image_id][AXES].plot(
-            body_lms[:,0], body_lms[:,1],
+            body_lms[:,X_IDX], body_lms[:,Y_IDX],
             'o-',
             color=color,
             markersize=self.joint_size,
@@ -190,8 +206,8 @@ class Renderer:
             animated=True
         )
         head, = self.plots[image_id][AXES].plot(
-            (body_lms[BODY_LMS_HEAD_IDX, 0]), 
-            (body_lms[BODY_LMS_HEAD_IDX, 1]),
+            (body_lms[BODY_LMS_HEAD_IDX, X_IDX]), 
+            (body_lms[BODY_LMS_HEAD_IDX, Y_IDX]),
             'o',
             color=color,
             markersize=self.joint_size * 5,
@@ -201,8 +217,8 @@ class Renderer:
             animated=True
         )
         bar, = self.plots[image_id][AXES].plot(
-            (bar_coords[:, 0]), 
-            (bar_coords[:, 1]),
+            (bar_coords[:, X_IDX]), 
+            (bar_coords[:, Y_IDX]),
             color=color,
             animated=True
         )
@@ -216,24 +232,24 @@ class Renderer:
         body_lms = self._prep_lms_for_frontview_plot(fv_lm_arr)
         bar_coords = self._front_view_bar_coords(body_lms, image_id)
         self.plots[image_id][LINES_DICT][label][BODY_LINE].set_data(
-            body_lms[:,0],
-            body_lms[:,1]
+            body_lms[:,X_IDX],
+            body_lms[:,Y_IDX]
         )
         self.plots[image_id][LINES_DICT][label][HEAD_LINE].set_data(
-            (body_lms[BODY_LMS_HEAD_IDX, 0]), 
-            (body_lms[BODY_LMS_HEAD_IDX, 1]),
+            (body_lms[BODY_LMS_HEAD_IDX, X_IDX]), 
+            (body_lms[BODY_LMS_HEAD_IDX, Y_IDX]),
         )
         self.plots[image_id][LINES_DICT][label][BAR_LINE].set_data(
-            (bar_coords[:, 0]), 
-            (bar_coords[:, 1]),
+            (bar_coords[:, X_IDX]), 
+            (bar_coords[:, Y_IDX]),
         )
 
     def _front_view_bar_coords(self, body_lms, image_id='foo'):
         """ Calculate the ends of the barbell for the front view based on the
         positions of the hands
         """
-        left_hand = body_lms[BODY_LMS_LEFT_HAND_IDX, [0,1]]
-        right_hand = body_lms[BODY_LMS_RIGHT_HAND_IDX, [0,1]]
+        left_hand = body_lms[BODY_LMS_LEFT_HAND_IDX, [X_IDX, Y_IDX]]
+        right_hand = body_lms[BODY_LMS_RIGHT_HAND_IDX, [X_IDX, Y_IDX]]
         bar_mid = np.mean([left_hand, right_hand], axis=0)
         # calculates coordinates of left plate
         plate_direction = left_hand - bar_mid # direction this half of the bar is pointing
@@ -280,13 +296,13 @@ class Renderer:
         idxs = self.mp_pose.PoseLandmark
         lms = lms.copy()
         # flip y coords so that positive y is up
-        lms[:,1] = -lms[:,1]
+        lms[:, Y_IDX] = -lms[:, Y_IDX]
         #center points so what the lower ankle's y coord is y0
         y0 = min(
-            lms[idxs.LEFT_ANKLE][1],
-            lms[idxs.RIGHT_ANKLE][1]
+            lms[idxs.LEFT_ANKLE, Y_IDX],
+            lms[idxs.RIGHT_ANKLE, Y_IDX]
         )
-        lms[:,1] -= y0
+        lms[:,Y_IDX] -= y0
         # sequence body landmarks so that they can be drawn in one go using a
         # Line2D object
         mid_shoulder = np.mean([
@@ -339,7 +355,7 @@ class Renderer:
         # insert additional shoulder before the elbow (after the ear) for proper plotting
         body_lms = self._prep_lms_for_sideview_plot(sv_lm_arr)
         body, = self.plots[image_id][AXES].plot(
-            body_lms[:,0], body_lms[:,1],
+            body_lms[:,X_IDX], body_lms[:,Y_IDX],
             'o-',
             color=color,
             markersize=self.joint_size,
@@ -351,8 +367,8 @@ class Renderer:
             animated=True
         )
         head, = self.plots[image_id][AXES].plot(
-            (sv_lm_arr[EAR, 0]), 
-            (sv_lm_arr[EAR, 1]),
+            (sv_lm_arr[EAR, X_IDX]), 
+            (sv_lm_arr[EAR, Y_IDX]),
             'o',
             color=color,
             markersize=self.joint_size * 5,
@@ -362,34 +378,56 @@ class Renderer:
             animated=True
         )
         bar, = self.plots[image_id][AXES].plot(
-            (sv_lm_arr[INDEX, 0]), 
-            (sv_lm_arr[INDEX, 1]),
+            (sv_lm_arr[INDEX, X_IDX]), 
+            (sv_lm_arr[INDEX, Y_IDX]),
             'o',
             color=color,
             markersize=self.joint_size * 2,
             animated=True
         )
+        neck_h, = self.plots[image_id][AXES].plot(
+            (sv_lm_arr[SHOULDER, X_IDX]), 
+            (sv_lm_arr[SHOULDER, Y_IDX]),
+            'o',
+            color=color,
+            markersize=self.joint_size * 1.5,
+            markerfacecolor='w',
+            markeredgewidth=self.joint_edge_width * 2,
+            markeredgecolor=GOOD_COLOR if neck_angle_heuristic(sv_lm_arr) else BAD_COLOR,
+            animated=True
+            # 'o',
+            # markerfacecolor='r',
+            # markeredgecolor='r',
+            # markersize=self.joint_size * 3,
+            # animated=True
+        )
         if legend:
             self.plots[image_id][AXES].legend()
         self.plots[image_id][LINES_DICT][label] = {
-            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar
+            BODY_LINE: body, HEAD_LINE: head, BAR_LINE: bar, NECK_H_LINE: neck_h,
         }
 
     def _update_sideview_artists(self, label, sv_lm_arr, image_id):
         body_lms = self._prep_lms_for_sideview_plot(sv_lm_arr)
         self.plots[image_id][LINES_DICT][label][BODY_LINE].set_data(
-            body_lms[:,0],
-            body_lms[:,1]
+            body_lms[:, X_IDX],
+            body_lms[:, Y_IDX]
         )
         self.plots[image_id][LINES_DICT][label][HEAD_LINE].set_data(
-            (sv_lm_arr[EAR, 0]), 
-            (sv_lm_arr[EAR, 1])
+            (sv_lm_arr[EAR, X_IDX]), 
+            (sv_lm_arr[EAR, Y_IDX])
         )
         self.plots[image_id][LINES_DICT][label][BAR_LINE].set_data(
-            (sv_lm_arr[INDEX, 0]), 
-            (sv_lm_arr[INDEX, 1])
+            (sv_lm_arr[INDEX, X_IDX]), 
+            (sv_lm_arr[INDEX, Y_IDX])
         )
-
+        self.plots[image_id][LINES_DICT][label][NECK_H_LINE].set_data(
+            (sv_lm_arr[SHOULDER, X_IDX]), 
+            (sv_lm_arr[SHOULDER, Y_IDX])
+        )
+        self.plots[image_id][LINES_DICT][label][NECK_H_LINE].set_markeredgecolor(
+            GOOD_COLOR if neck_angle_heuristic(sv_lm_arr) else BAD_COLOR
+        )
 
     def _prep_lms_for_sideview_plot(self, lms):
         return np.vstack([lms[:ELBOW], lms[SHOULDER], lms[ELBOW:]])

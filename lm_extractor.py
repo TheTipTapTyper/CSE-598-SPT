@@ -44,10 +44,10 @@ class LandmarkExtractor:
 
     def _setup_input_stream(self, input_id):
         """ Create a subprocess to handle landmark extraction for the input stream
-        specified by input_id. A pip is opened between the parent process and the child.
+        specified by input_id. A pipe is opened between the parent process and the child.
         """
         parent_con, child_con = mproc.Pipe()
-        proc = mproc.Process(target=lambda: _pose_estimator_proc(child_con, **self.pose_kwargs))
+        proc = mproc.Process(target=_pose_estimator_proc, args=[child_con], kwargs={**self.pose_kwargs})
         proc.start()
         self.processes[input_id] = proc
         self.connections[input_id] = parent_con

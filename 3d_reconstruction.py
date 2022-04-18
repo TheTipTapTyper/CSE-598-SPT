@@ -58,7 +58,7 @@ def _DLT(l_proj_matrix, r_proj_matrix, l_point, r_point):
     B = A.transpose() @ A
     U, s, Vh = linalg.svd(B, full_matrices = False)
  
-    triangulated_point = Vh[3,0:3]/Vh[3,3]
+    triangulated_point = Vh[3,0:3]
     return triangulated_point
 
 
@@ -101,22 +101,15 @@ def two_d_to_three_d_reconstruction(l_proj_matrix, r_proj_matrix, l_landmark, r_
 
     # you only need return either cv_triangulation_points_with_visibility or dlt_triangulation_points_with_visibility
     left_points, right_points = filter_2D_points(l_landmark, r_landmark)
-    cv_triangulation_points = cv_triangulate(l_proj_matrix, right_projection_matrix, left_points, right_points)
     dlt_triangulation_points = dlt_triangulation(l_proj_matrix, r_proj_matrix, left_points, right_points)
-    cv_triangulation_points_with_visibility = add_visibility(cv_triangulation_points,l_landmark, r_landmark)
-    dlt_triangulation_points_with_visibility = add_visibility(dlt_triangulation_points,l_landmark, r_landmark)
     
-    return cv_triangulation_points, dlt_triangulation_points
+    return dlt_triangulation_points
 
 def plot_points(points):
     """Given a set of points, this function plots them in 3D"""
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-
-    # for bodypart, part_color in zip(body, colors):
-    #     for _c in bodypart:
-    #         ax.plot(zs = [points[_c[0],0], points[_c[1],0]], ys = [points[_c[0],1], points[_c[1],1]], xs = [points[_c[0],2], points[_c[1],2]], linewidth = 4, c = part_color)
 
     for i in range(33):
         ax.text(points[i,0], points[i,1], points[i,2], str(i))
@@ -136,21 +129,9 @@ def plot_points(points):
 def get_projection_matrices():
     """Gets the left and right projection matrix of the project"""
     
-    left_projection_matrix = np.loadtxt("projMatrixL.txt",dtype=float)
-    right_projection_matrix = np.loadtxt("projMatrixR.txt", dtype=float)
+    left_projection_matrix = np.loadtxt("camera_calibration/projMatrixL.txt",dtype=float)
+    right_projection_matrix = np.loadtxt("camera_calibration/projMatrixR.txt", dtype=float)
     
-    left_projection_matrix = [
-        [-9.18661764e-01, 9.11756749e+02, 3.37881846e+02, 2.01654624e+03],
-        [-9.30834700e+02, 4.13545633e+01, 2.80790957e+02, 5.90348850e+03],
-        [-8.89674392e-02, 3.33766644e-02, 9.95475159e-01, 1.47538375e+01]
-    ]
-
-    right_projection_matrix = [
-        [ 3.74945291e+01,  4.20636530e+02, 9.02796707e+02, 7.78944354e+01],
-        [-9.07387398e+02, -2.68857890e+02, 3.08500435e+02, 9.65183793e+03],
-        [ 5.51648200e-02, -6.87280340e-01, 7.24294540e-01, 2.28847151e+01]
-    ]
-
     return left_projection_matrix, right_projection_matrix
 
 # testing 
@@ -175,8 +156,11 @@ if __name__ == "__main__":
         land_marks ,  land_marks1 = lme.extract_landmarks([image1,image2],[1,2])
 
         #return x,y,z but not visibility
-        cv_triangulation_points, dlt_triangulation_points = two_d_to_three_d_reconstruction(left_projection_matrix, right_projection_matrix, land_marks[0], land_marks1[0])
+        dlt_triangulation_points = two_d_to_three_d_reconstruction(left_projection_matrix, right_projection_matrix, land_marks[0], land_marks1[0])
+        print("dlt_triangulation_points shape", dlt_triangulation_points.shape)
+        print("dlt_triangulation_points", dlt_triangulation_points)
 
-        plot_points(dlt_triangulation_points)
+        # plot_points(dlt_triangulation_points)
+        break
 
     lme.kill_processes()

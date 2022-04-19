@@ -1,14 +1,5 @@
 import cv2
-from scipy import linalg
-import glob
 import numpy as np
-import lm_extractor
-from lm_extractor import landmark_array
-from PIL import Image
-import matplotlib.pyplot as plt
-
-
-
 
 class Reconstructor3D:
     def __init__(self, proj_mat1_path, proj_mat2_path):
@@ -23,22 +14,23 @@ class Reconstructor3D:
             lm_array2: Same as lm_array1 except for corresponding to self.proj_mat2
         Returns: reconstructed 33x4 numpy array of landmarks 
         """
-        cv_triangulation = []
-        for point1, point2 in zip(lm_array1, lm_array2):
-            point1 = point1[:2].reshape(2,1)
-            point2 = point2[:2].reshape(2,1)
-            triangulation = cv2.triangulatePoints(self.proj_mat1, self.proj_mat2, 
-                point1, point2)
-            output_point = triangulation[:-1] / triangulation[-1]
-            cv_triangulation.append(output_point.T)
-        recon_lm_array = np.ones((33,4))
-        recon_lm_array[:,:-1] = np.vstack(cv_triangulation)
-        recon_lm_array[:, -1] = np.mean([lm_array1[:, -1], lm_array2[:, -1]], axis=0)
-        return recon_lm_array
+        lm_array1_xy_T = lm_array1[:,[0,1]].T
+        lm_array2_xy_T = lm_array2[:,[0,1]].T
+        triangulated = cv2.triangulatePoints(self.proj_mat1, self.proj_mat2, 
+            lm_array1_xy_T, lm_array2_xy_T).T
+        # unhomogenize
+        output_lm_array = (triangulated.T / triangulated[:, -1]).T
+        # replace ones column with average visibility scores
+        output_lm_array[:, -1] = np.mean([lm_array1[:, -1], lm_array2[:, -1]], axis=0)
+        return output_lm_array
 
 
 # testing 
 if __name__ == "__main__":
+    import glob
+    import lm_extractor
+    from lm_extractor import landmark_array
+    from PIL import Image
     imagesLeft = sorted(glob.glob('camera_calibration/images/poseLeft/*.png'))
     imagesRight = sorted(glob.glob('camera_calibration/images/poseRIght/*.png'))
 

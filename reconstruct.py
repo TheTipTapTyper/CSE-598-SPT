@@ -15,46 +15,8 @@ class Reconstructor3D:
         self.proj_mat1 = np.loadtxt(proj_mat1_path, dtype=float)
         self.proj_mat2 = np.loadtxt(proj_mat2_path, dtype=float)
 
-    # direct linear transformation  
-    def _DLT(self, point1, point2):
-        """ Uses direct linear transformation to triangulate a point in R3 given
-        two views of that point in R2.
-        point[1,2]: 1x2 numpy array (x, y)
-        Returns: 1x3 numpy array (x, y, z)
-        """
-        A = [
-            point1[1]*self.proj_mat1[2,:] - self.proj_mat1[1,:],
-            self.proj_mat1[0,:] - point1[0]*self.proj_mat1[2,:],
-            point2[1]*self.proj_mat2[2,:] - self.proj_mat2[1,:],
-            self.proj_mat2[0,:] - point2[0]*self.proj_mat2[2,:]
-        ]
-        
-        A = np.array(A).reshape((4,4))
-        B = A.transpose() @ A
-        _, _, Vh = linalg.svd(B, full_matrices = False)
-    
-        triangulated_point = Vh[3,0:3]
-        return triangulated_point
-
     def reconstruct(self, lm_array1, lm_array2):
-        """ Uses direct linear transformation to perform 3D reconstruction of landmarks.
-        Input:
-            lm_array1: 33x4 numpy array of landmarks. Calculated from image taken on camera corresponding
-                to the the self.proj_mat1 projection matrix
-            lm_array2: Same as lm_array1 except for corresponding to self.proj_mat2
-        Returns: reconstructed 33x4 numpy array of landmarks 
-        """
-        triangulated_points = []
-        for point1, point2 in zip(lm_array1, lm_array2):
-            triangulation = self._DLT(point1[:2], point2[:2])
-            triangulated_points.append(triangulation)
-        recon_lm_array = np.ones((33,4))
-        recon_lm_array[:,:-1] = np.array(triangulated_points)
-        return recon_lm_array
-
-
-    def cv_triangulate(self, lm_array1, lm_array2):
-        """ Uses direct linear transformation to perform 3D reconstruction of landmarks.
+        """ Uses opencv's triangulatePoints function to perform 3D reconstruction of landmarks.
         Input:
             lm_array1: 33x4 numpy array of landmarks. Calculated from image taken on camera corresponding
                 to the the self.proj_mat1 projection matrix
@@ -71,6 +33,7 @@ class Reconstructor3D:
             cv_triangulation.append(output_point.T)
         recon_lm_array = np.ones((33,4))
         recon_lm_array[:,:-1] = np.vstack(cv_triangulation)
+        recon_lm_array[:, -1] = np.mean([lm_array1[:, -1], lm_array2[:, -1]], axis=0)
         return recon_lm_array
 
 

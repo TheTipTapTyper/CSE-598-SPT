@@ -113,7 +113,7 @@ def render_images_3d_recon(raw_images, le, re, recon):
         lm_array[:, 1] *= height
         lm_arrays.append(lm_array)
         top_row_images.append(re.render_landmarks(image, mp_lm_obj))
-    lm_array = recon.cv_triangulate(lm_arrays[0], lm_arrays[1])
+    lm_array = recon.reconstruct(lm_arrays[0], lm_arrays[1])
     lm_array[:, [0,1,2]] /= 10
     lm_array[:, [0,1]] = lm_array[:, [1,0]]
     lm_array[:,1] = -lm_array[:,1]
@@ -145,7 +145,9 @@ def run(inputs, proj_mat1=None, proj_mat2=None, cam_cal_param_files=None, output
         smooth_landmarks=True,
         model_complexity=1,
     )
-    recon = Reconstructor3D(proj_mat1, proj_mat2)
+    recon = None
+    if proj_mat1 is not None and proj_mat2 is not None:
+        recon = Reconstructor3D(proj_mat1, proj_mat2)
     try:
         while vm.is_open():
             results = [vm.read(id) for id in inputs]
@@ -158,12 +160,14 @@ def run(inputs, proj_mat1=None, proj_mat2=None, cam_cal_param_files=None, output
                 else:
                     print('read failed. exiting')
                     break
-            # top_row_images, left_sv_image, right_sv_image = render_images(
-            #     raw_images, le, re
-            # )
-            top_row_images, left_sv_image, right_sv_image = render_images_3d_recon(
-                raw_images, le, re, recon
-            )
+            if recon is None:
+                top_row_images, left_sv_image, right_sv_image = render_images(
+                    raw_images, le, re
+                )
+            else:
+                top_row_images, left_sv_image, right_sv_image = render_images_3d_recon(
+                    raw_images, le, re, recon
+                )
             full_image = stitch_full_image(
                 top_row_images, left_sv_image, right_sv_image, width, height
             )

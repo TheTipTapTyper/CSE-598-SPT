@@ -7,11 +7,13 @@ Project: Deadlift Critic
 """
 from renderer import Renderer
 import lm_extractor as lm_ex
-from lm_extractor import LandmarkExtractor
+from lm_extractor import LandmarkExtractor, normalize
 from vid_man import VideoManager
 import cv2
 import numpy as np        
 import calibrate
+from reconstruct import Reconstructor3D
+
 
 OUTPUT_FPS = 15
 
@@ -92,8 +94,48 @@ def render_images(raw_images, le, re):
     fv2_image = re.render_frontview(fv_w_avg_array_dict, image_id='fv2')
     return top_row_images, sv2_image, fv2_image
 
+def render_images_3d_recon(raw_images, le, re, recon):
+    top_row_images = []
+    side_view_arrays_dict = dict()
+    front_view_arrays_dict = dict()
+    results = le.extract_landmarks(raw_images, list(range(len(raw_images))))
+    if not isinstance(results, list):
+        results = [results]
+    lm_arrays = []
+    height, width, _ = raw_images[0].shape
+    for idx, (image, result) in enumerate(zip(raw_images, results)):
+        mp_lm_obj, mp_lm_world_obj = result
+        if mp_lm_obj is None: # pose detection failed
+            top_row_images.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            break
+        lm_array = lm_ex.landmark_array(mp_lm_obj, norm=False)
+        lm_array[:, 0] *= width
+        lm_array[:, 1] *= height
+        lm_arrays.append(lm_array)
+        top_row_images.append(re.render_landmarks(image, mp_lm_obj))
+    lm_array = recon.cv_triangulate(lm_arrays[0], lm_arrays[1])
+    lm_array[:, [0,1,2]] /= 10
+    lm_array[:, [0,1]] = lm_array[:, [1,0]]
+    lm_array[:,1] = -lm_array[:,1]
+    lm_array = normalize(lm_array)
+    left, right = lm_ex.sideviews(lm_array, ground=True)
+    side_view_arrays_dict['left'] = left
+    side_view_arrays_dict['right'] = right
+    front_view_arrays_dict['front'] = lm_array
+    # calculate weighted average of sideviews, if there are any
+    sv_w_avg_array_dict = dict()
+    if len(side_view_arrays_dict) > 0: # at least one person in view
+        sv_w_avg_array_dict['weighted avg'] = lm_ex.weighted_average(
+            side_view_arrays_dict.values()
+        )
+    # render side view images
+    #sv1_image = re.render_sideview(side_view_arrays_dict, image_id='sv')
+    sv2_image = re.render_sideview(sv_w_avg_array_dict, image_id='sv')
+    fv_image = re.render_frontview(front_view_arrays_dict, image_id='fv')
+    return top_row_images, sv2_image, fv_image
 
-def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=1080):
+
+def run(inputs, proj_mat1=None, proj_mat2=None, cam_cal_param_files=None, output_fn=None, width=1920, height=1080):
     vm = setup_video_manager(inputs, cam_cal_param_files, output_fn, width, height)
     is_webcam = isinstance(inputs[0], int)
     re = Renderer()
@@ -103,6 +145,7 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
         smooth_landmarks=True,
         model_complexity=1,
     )
+    recon = Reconstructor3D(proj_mat1, proj_mat2)
     try:
         while vm.is_open():
             results = [vm.read(id) for id in inputs]
@@ -115,8 +158,11 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
                 else:
                     print('read failed. exiting')
                     break
-            top_row_images, left_sv_image, right_sv_image = render_images(
-                raw_images, le, re
+            # top_row_images, left_sv_image, right_sv_image = render_images(
+            #     raw_images, le, re
+            # )
+            top_row_images, left_sv_image, right_sv_image = render_images_3d_recon(
+                raw_images, le, re, recon
             )
             full_image = stitch_full_image(
                 top_row_images, left_sv_image, right_sv_image, width, height
@@ -128,6 +174,7 @@ def run(inputs, cam_cal_param_files=None, output_fn=None, width=1920, height=108
     finally:
         vm.release()
         le.kill_processes()
+
 
 def record_2_cams(run_no):
     vm = VideoManager()
@@ -163,10 +210,19 @@ if __name__ == '__main__':
     with_film_fn = 'sample_video_pairs/cam_film_run{}.mp4'.format(run_no)
     no_film_fn = 'sample_video_pairs/cam_no_film_run{}.mp4'.format(run_no)
     inputs = [with_film_fn, no_film_fn]
-    
+
+    inputs = [
+        '3d_test_vids/cam0_test.mp4',
+        '3d_test_vids/cam1_test.mp4'
+    ]
+
+
+    proj_mat1 = '3d_test_vids/cam0_proj_mat.txt'
+    proj_mat2 = '3d_test_vids/cam1_proj_mat.txt'
+
     calibration_params = [
         'with_film_calibration.params',
         'no_film_calibration.params'
     ]
     #inputs = [1]
-    run(inputs, calibration_params)
+    run(inputs, proj_mat1=proj_mat1, proj_mat2=proj_mat2)#, cam_cal_param_files=calibration_params)
